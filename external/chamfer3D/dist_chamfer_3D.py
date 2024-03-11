@@ -2,8 +2,9 @@ from torch import nn
 from torch.autograd import Function
 import torch
 import importlib
+import importlib.util
 import os
-chamfer_found = importlib.find_loader("chamfer_3D") is not None
+chamfer_found = importlib.util.find_spec("chamfer_3D") is not None
 
 if not chamfer_found:
     ## Cool trick from https://github.com/chrdiller
