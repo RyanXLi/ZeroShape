@@ -177,7 +177,7 @@ class Runner():
             self.best_val = np.inf
             self.best_ep = 1
         # training
-        if self.iter_start == 0 and not opt.debug: self.evaluate(opt, ep=0, training=True)
+        # if self.iter_start == 0 and not opt.debug: self.evaluate(opt, ep=0, training=True)
         for self.ep in range(self.epoch_start, opt.max_epoch):
             self.train_epoch(opt)
         # after training
@@ -436,7 +436,6 @@ class Runner():
             cat_indices_all = cat_indices
         # handle last batch, if any
         if len(self.test_loader.sampler) * opt.world_size < len(self.test_data):
-            print("handle last batch")
             cd_accs_all = [cd_accs_all]
             cd_comps_all = [cd_comps_all]
             f_scores_all = [f_scores_all]
