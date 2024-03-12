@@ -15,6 +15,8 @@ from utils.util import EasyDict as edict
 from copy import deepcopy
 from model.compute_graph import graph_shape
 
+from tqdm import tqdm
+
 # ============================ main engine for training and evaluation ============================
 
 class Runner():
@@ -393,7 +395,7 @@ class Runner():
                 # save the predicted mesh for vis data if in train mode
                 if it == 0 and training and opt.device == 0: 
                     print("visualizing and saving results...")
-                    for i in range(len(self.viz_data)):
+                    for i in tqdm(range(len(self.viz_data))):
                         var_viz = edict(deepcopy(self.viz_data[i]))
                         var_viz = self.evaluate_batch(opt, var_viz, ep, it, single_gpu=True)
                         eval_3D.eval_metrics(opt, var_viz, self.graph.module.impl_network, vis_only=True)
