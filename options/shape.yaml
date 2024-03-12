@@ -101,8 +101,8 @@ tb:
     num_images: [4,8]
 
 freq:
-    print: 200
-    print_eval: 100
+    print: 1 #200
+    print_eval: 1 #100
     scalar: 1000 # iterations
     vis: 1000 # iterations
     save_vis: 1000

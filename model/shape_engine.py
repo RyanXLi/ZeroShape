@@ -436,11 +436,12 @@ class Runner():
             cat_indices_all = cat_indices
         # handle last batch, if any
         if len(self.test_loader.sampler) * opt.world_size < len(self.test_data):
+            print("handle last batch")
             cd_accs_all = [cd_accs_all]
             cd_comps_all = [cd_comps_all]
             f_scores_all = [f_scores_all]
             cat_indices_all = [cat_indices_all]
-            for batch in self.aux_test_loader:
+            for batch in tqdm(self.aux_test_loader):
                 # inference the model
                 var = edict(batch)
                 var = self.evaluate_batch(opt, var, ep, it, single_gpu=False)
