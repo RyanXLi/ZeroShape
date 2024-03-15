@@ -353,7 +353,7 @@ def is_port_in_use(port):
 
 def setup(rank, world_size, port_no):
     full_address = 'tcp://127.0.0.1:' + str(port_no)
-    dist.init_process_group("nccl", init_method=full_address, rank=rank, world_size=world_size)
+    dist.init_process_group("nccl", init_method=full_address, rank=rank, world_size=world_size, timeout=datetime.timedelta(seconds=3600))
 
 def print_grad(grad, prefix=''):
     print("{} --- Grad Abs Mean, Grad Max, Grad Min: {:.5f} | {:.5f} | {:.5f}".format(prefix, grad.abs().mean().item(), grad.max().item(), grad.min().item()))
