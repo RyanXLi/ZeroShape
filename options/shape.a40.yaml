@@ -44,7 +44,7 @@ arch:
         skip_in: [2,4,6]
 
 eval:
-    batch_size: 130 # 44 per card
+    batch_size: 64 # 44 per card
     brute_force: false
     n_vis: 50
     vox_res: 64
