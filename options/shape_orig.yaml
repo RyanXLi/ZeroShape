@@ -2,7 +2,7 @@ group: shape
 name: shape_recon
 load: 
 
-batch_size: 384 # 96 per card
+batch_size: 28
 debug: false
 profile: false
 image_size: [224,224]
@@ -44,7 +44,7 @@ arch:
         skip_in: [2,4,6]
 
 eval:
-    batch_size: 130 # 44 per card
+    batch_size: 2
     brute_force: false
     n_vis: 50
     vox_res: 64
@@ -87,8 +87,8 @@ loss_weight:
     intr: 
     
 optim:
-    lr: 4.114e-4 #3.e-5
-    lr_ft: 1.37e-4 #1.e-5
+    lr: 3.e-5
+    lr_ft: 1.e-5
     weight_decay: 0.05
     fix_dpt: false
     fix_clip: true
@@ -101,8 +101,8 @@ tb:
     num_images: [4,8]
 
 freq:
-    print: 1 #200
-    print_eval: 1 #100
+    print: 200
+    print_eval: 100
     scalar: 1000 # iterations
     vis: 1000 # iterations
     save_vis: 1000
