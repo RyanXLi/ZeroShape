@@ -1,0 +1,10 @@
+# ninja log v5
+1	19756	1710829386902245881	/home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/group_points_gpu.o	1c1bcfee1c919fc1
+1	20039	1710829387154249480	/home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/group_points.o	4d8c5c5c4ae43831
+1	20156	1710829387306251651	/home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/sampling_gpu.o	d6604c23aa8b1a6
+0	21230	1710829388350266562	/home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/ball_query.o	24071535c7936e29
+1	21629	1710829388786272789	/home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/interpolate_gpu.o	19ccb001973829d4
+0	22659	1710829389818287528	/home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/ball_query_gpu.o	f1245508cf03fd8f
+0	23209	1710829390342295011	/home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/bindings.o	3941b48267c0182d
+1	23298	1710829390422296153	/home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/sampling.o	9d975f7bd5515bd5
+1	24213	1710829391342309290	/home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/interpolate.o	8f56d77d02b934fd

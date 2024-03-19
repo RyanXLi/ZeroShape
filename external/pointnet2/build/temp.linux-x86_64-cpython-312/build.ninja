@@ -1,0 +1,40 @@
+ninja_required_version = 1.3
+cxx = /home/ryan/anaconda3/envs/zsnew/bin/x86_64-conda-linux-gnu-c++
+nvcc = /home/ryan/anaconda3/envs/zsnew/bin/nvcc
+
+cflags = -fno-strict-overflow -DNDEBUG -O2 -Wall -fPIC -O2 -isystem /home/ryan/anaconda3/envs/zsnew/include -fPIC -O2 -isystem /home/ryan/anaconda3/envs/zsnew/include -march=nocona -mtune=haswell -ftree-vectorize -fPIC -fstack-protector-strong -fno-plt -O2 -ffunction-sections -pipe -isystem /home/ryan/anaconda3/envs/zsnew/include -DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem /home/ryan/anaconda3/envs/zsnew/include -fPIC -I/home/ryan/work/ZeroShape/external/pointnet2/_ext_src/include -I/home/ryan/anaconda3/envs/zsnew/lib/python3.12/site-packages/torch/include -I/home/ryan/anaconda3/envs/zsnew/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -I/home/ryan/anaconda3/envs/zsnew/lib/python3.12/site-packages/torch/include/TH -I/home/ryan/anaconda3/envs/zsnew/lib/python3.12/site-packages/torch/include/THC -I/home/ryan/anaconda3/envs/zsnew/include -I/home/ryan/anaconda3/envs/zsnew/include/python3.12 -c
+post_cflags = -O2 -I_ext_src/include -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE="_gcc"' '-DPYBIND11_STDLIB="_libstdcpp"' '-DPYBIND11_BUILD_ABI="_cxxabi1011"' -DTORCH_EXTENSION_NAME=_ext -D_GLIBCXX_USE_CXX11_ABI=0 -std=c++17
+cuda_cflags = -I/home/ryan/work/ZeroShape/external/pointnet2/_ext_src/include -I/home/ryan/anaconda3/envs/zsnew/lib/python3.12/site-packages/torch/include -I/home/ryan/anaconda3/envs/zsnew/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -I/home/ryan/anaconda3/envs/zsnew/lib/python3.12/site-packages/torch/include/TH -I/home/ryan/anaconda3/envs/zsnew/lib/python3.12/site-packages/torch/include/THC -I/home/ryan/anaconda3/envs/zsnew/include -I/home/ryan/anaconda3/envs/zsnew/include/python3.12 -c
+cuda_post_cflags = -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr --compiler-options ''"'"'-fPIC'"'"'' -O2 -I_ext_src/include -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE="_gcc"' '-DPYBIND11_STDLIB="_libstdcpp"' '-DPYBIND11_BUILD_ABI="_cxxabi1011"' -DTORCH_EXTENSION_NAME=_ext -D_GLIBCXX_USE_CXX11_ABI=0 -gencode=arch=compute_86,code=compute_86 -gencode=arch=compute_86,code=sm_86 -ccbin /home/ryan/anaconda3/envs/zsnew/bin/x86_64-conda-linux-gnu-cc -std=c++17
+cuda_dlink_post_cflags = 
+ldflags = 
+
+rule compile
+  command = $cxx -MMD -MF $out.d $cflags -c $in -o $out $post_cflags
+  depfile = $out.d
+  deps = gcc
+
+rule cuda_compile
+  depfile = $out.d
+  deps = gcc
+  command = $nvcc --generate-dependencies-with-compile --dependency-output $out.d $cuda_cflags -c $in -o $out $cuda_post_cflags
+
+
+
+
+
+build /home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/ball_query.o: compile /home/ryan/work/ZeroShape/external/pointnet2/_ext_src/src/ball_query.cpp
+build /home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/ball_query_gpu.o: cuda_compile /home/ryan/work/ZeroShape/external/pointnet2/_ext_src/src/ball_query_gpu.cu
+build /home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/bindings.o: compile /home/ryan/work/ZeroShape/external/pointnet2/_ext_src/src/bindings.cpp
+build /home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/group_points.o: compile /home/ryan/work/ZeroShape/external/pointnet2/_ext_src/src/group_points.cpp
+build /home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/group_points_gpu.o: cuda_compile /home/ryan/work/ZeroShape/external/pointnet2/_ext_src/src/group_points_gpu.cu
+build /home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/interpolate.o: compile /home/ryan/work/ZeroShape/external/pointnet2/_ext_src/src/interpolate.cpp
+build /home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/interpolate_gpu.o: cuda_compile /home/ryan/work/ZeroShape/external/pointnet2/_ext_src/src/interpolate_gpu.cu
+build /home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/sampling.o: compile /home/ryan/work/ZeroShape/external/pointnet2/_ext_src/src/sampling.cpp
+build /home/ryan/work/ZeroShape/external/pointnet2/build/temp.linux-x86_64-cpython-312/_ext_src/src/sampling_gpu.o: cuda_compile /home/ryan/work/ZeroShape/external/pointnet2/_ext_src/src/sampling_gpu.cu
+
+
+
+
+
+

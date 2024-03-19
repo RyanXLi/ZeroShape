@@ -4,7 +4,7 @@ import torch.nn as nn
 from utils.util import EasyDict as edict
 from utils.loss import Loss
 from model.shape.implicit import Implicit
-from model.shape.seen_coord_enc import CoordEncAtt, CoordEncRes
+from model.shape.seen_coord_enc import CoordEncAtt, CoordEncRes, CoordEnc3detr
 from model.shape.rgb_enc import RGBEncAtt, RGBEncRes
 from model.depth.dpt_depth import DPTDepthModel
 from utils.util import toggle_grad, interpolate_coordmap, get_child_state_dict
@@ -41,6 +41,9 @@ class Graph(nn.Module):
         if opt.arch.depth.encoder == 'resnet':
             opt.arch.depth.dsp = 1
             self.coord_encoder = CoordEncRes(opt)
+        elif opt.arch.depth.encoder == '3detr':
+            opt.arch.depth.dsp = 1
+            self.coord_encoder = CoordEnc3detr(opt)
         else:
             self.coord_encoder = CoordEncAtt(embed_dim=opt.arch.latent_dim, n_blocks=opt.arch.depth.n_blocks, 
                                         num_heads=opt.arch.num_heads, win_size=opt.arch.win_size//opt.arch.depth.dsp)
@@ -48,6 +51,8 @@ class Graph(nn.Module):
         # rgb branch (not used in final model, keep here for extension)
         if opt.arch.rgb.encoder == 'resnet':
             self.rgb_encoder = RGBEncRes(opt)
+        elif opt.arch.depth.encoder == '3detr':
+            self.rgb_encoder = None
         elif opt.arch.rgb.encoder == 'transformer':
             self.rgb_encoder = RGBEncAtt(img_size=opt.H, embed_dim=opt.arch.latent_dim, n_blocks=opt.arch.rgb.n_blocks, 
                                         num_heads=opt.arch.num_heads, win_size=opt.arch.win_size)
@@ -146,6 +151,8 @@ class Graph(nn.Module):
         # encode the depth, [B, 1, H/k, W/k] -> [B, 1+H/(ws)*W/(ws), C]
         if opt.arch.depth.encoder == 'resnet':
             var.latent_depth = self.coord_encoder(seen_3D_dsp, mask_dsp)
+        elif opt.arch.depth.encoder == '3detr':
+            var.latent_depth = self.coord_encoder(seen_3D_dsp.permute(0, 2, 3, 1).contiguous(), mask_dsp.squeeze(1)>0.5)
         else:
             var.latent_depth = self.coord_encoder(seen_3D_dsp.permute(0, 2, 3, 1).contiguous(), mask_dsp.squeeze(1)>0.5)
         
