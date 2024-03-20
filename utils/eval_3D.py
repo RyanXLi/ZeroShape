@@ -20,7 +20,7 @@ def get_dense_3D_grid(opt, var, N=None):
     return points_3D
 
 @torch.no_grad()
-def compute_level_grid(opt, impl_network, latent_depth, latent_semantic, points_3D, images, vis_attn=False):
+def compute_level_grid(opt, impl_network, latent_depth, latent_semantic, points_3D, images, vis_attn=False, pos=None):
     # needed for amp
     latent_depth = latent_depth.to(torch.float32) if latent_depth is not None else None
     latent_semantic = latent_semantic.to(torch.float32) if latent_semantic is not None else None
@@ -38,47 +38,47 @@ def compute_level_grid(opt, impl_network, latent_depth, latent_semantic, points_
         # [B, N*N, 3]
         points_slice = points_3D[:, i]
         # [B, N*N, 3] -> [B, N*N], [B, N*N, 1+feat_res**2]
-        occ_slice, attn_slice = impl_network(latent_depth, latent_semantic, points_slice)
+        occ_slice, attn_slice = impl_network(latent_depth, latent_semantic, points_slice, pos=pos)
         occ.append(occ_slice)
         attn.append(attn_slice.detach())
     # [B, N, N*N] -> [B, N, N, N]
     occ = torch.stack(occ, dim=1).view(batch_size, N, N, N)
     occ = torch.sigmoid(occ)
-    if vis_attn:
-        N_global = 1
-        feat_res = opt.H // opt.arch.win_size
-        attn = torch.stack(attn, dim=1).view(batch_size, N, N, N, N_global+feat_res**2)
-        # average along Z, [B, N, N, N_global+feat_res**2]
-        attn = torch.mean(attn, dim=3)
-        # [B, N, N, N_global] -> [B, N, N, 1]
-        attn_global = attn[:, :, :, :N_global].sum(dim=-1, keepdim=True)
-        # [B, N, N, feat_res, feat_res]
-        attn_local = attn[:, :, :, N_global:].view(batch_size, N, N, feat_res, feat_res)
-        # [B, N, N, feat_res, feat_res]
-        attn_vis = attn_global.unsqueeze(-1) + attn_local
-        # list of frame lists
-        images_vis = []
-        for b in range(batch_size):
-            images_vis_sample = []
-            for row in range(0, N, 8):
-                if row % 16 == 0:
-                    col_range = range(0, N//8*8+1, 8)
-                else:
-                    col_range = range(N//8*8, -1, -8)
-                for col in col_range:
-                    # [feat_res, feat_res], x is col
-                    attn_curr = attn_vis[b, col, row]
-                    attn_curr = torch.nn.functional.interpolate(
-                        attn_curr.unsqueeze(0).unsqueeze(0), size=(opt.H, opt.W), 
-                        mode='bilinear', align_corners=False
-                    ).squeeze(0).squeeze(0).cpu().numpy()
-                    attn_curr /= attn_curr.max()
-                    # [feat_res, feat_res, 3]
-                    image_curr = images[b].permute(1, 2, 0).cpu().numpy()
-                    # merge the image and the attention
-                    images_vis_sample.append(show_att_on_image(image_curr, attn_curr))
-            images_vis.append(images_vis_sample)
-    return occ, images_vis if vis_attn else None
+    # if vis_attn:
+    #     N_global = 1
+    #     feat_res = opt.H // opt.arch.win_size
+    #     attn = torch.stack(attn, dim=1).view(batch_size, N, N, N, -1)
+    #     # average along Z, [B, N, N, N_global+feat_res**2]
+    #     attn = torch.mean(attn, dim=3)
+    #     # [B, N, N, N_global] -> [B, N, N, 1]
+    #     attn_global = attn[:, :, :, :N_global].sum(dim=-1, keepdim=True)
+    #     # [B, N, N, feat_res, feat_res]
+    #     attn_local = attn[:, :, :, N_global:].view(batch_size, N, N, feat_res, feat_res)
+    #     # [B, N, N, feat_res, feat_res]
+    #     attn_vis = attn_global.unsqueeze(-1) + attn_local
+    #     # list of frame lists
+    #     images_vis = []
+    #     for b in range(batch_size):
+    #         images_vis_sample = []
+    #         for row in range(0, N, 8):
+    #             if row % 16 == 0:
+    #                 col_range = range(0, N//8*8+1, 8)
+    #             else:
+    #                 col_range = range(N//8*8, -1, -8)
+    #             for col in col_range:
+    #                 # [feat_res, feat_res], x is col
+    #                 attn_curr = attn_vis[b, col, row]
+    #                 attn_curr = torch.nn.functional.interpolate(
+    #                     attn_curr.unsqueeze(0).unsqueeze(0), size=(opt.H, opt.W), 
+    #                     mode='bilinear', align_corners=False
+    #                 ).squeeze(0).squeeze(0).cpu().numpy()
+    #                 attn_curr /= attn_curr.max()
+    #                 # [feat_res, feat_res, 3]
+    #                 image_curr = images[b].permute(1, 2, 0).cpu().numpy()
+    #                 # merge the image and the attention
+    #                 images_vis_sample.append(show_att_on_image(image_curr, attn_curr))
+    #         images_vis.append(images_vis_sample)
+    return occ, None #images_vis if vis_attn else None
 
 @torch.no_grad()
 def standardize_pc(pc):
@@ -106,7 +106,7 @@ def eval_metrics_default(opt, var, impl_network, vis_only=False):
     points_3D = get_dense_3D_grid(opt, var) # [B, N, N, N, 3]
     batch_size = points_3D.shape[0]
     level_vox, attn_vis = compute_level_grid(opt, impl_network, var.latent_depth, var.latent_semantic, 
-                                             points_3D, var.rgb_input_map, vis_only)
+                                             points_3D, var.rgb_input_map, vis_only, pos=var.enc_pos)
     if attn_vis:
         var.attn_vis = attn_vis
     var.eval_vox = points_3D.view(batch_size, -1, 3)

@@ -6,7 +6,7 @@ from functools import partial
 from utils.layers import get_embedder
 from utils.layers import LayerScale
 from timm.models.vision_transformer import Mlp, DropPath
-from utils.pos_embed import get_2d_sincos_pos_embed
+# from utils.pos_embed import get_2d_sincos_pos_embed
     
 class ImplFuncAttention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, attn_drop=0., proj_drop=0., last_layer=False):
@@ -201,8 +201,8 @@ class Implicit(nn.Module):
         self.point_proj = LinearProj3D(n_channels)
         self.latent_proj = nn.Linear(latent_dim, n_channels, bias=True)
         
-        # positional embedding for the depth latent codes
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, n_channels), requires_grad=False)  # fixed sin-cos embedding
+        # # positional embedding for the depth latent codes
+        # self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, n_channels), requires_grad=False)  # fixed sin-cos embedding
 
         # multi-head attention blocks
         self.blocks_attn = nn.ModuleList([
@@ -231,9 +231,9 @@ class Implicit(nn.Module):
 
     def initialize_weights(self):
         
-        # initialize the positional embedding for the depth latent codes
-        pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], int(self.num_patches**.5), cls_token=True)
-        self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+        # # initialize the positional embedding for the depth latent codes
+        # pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], int(self.num_patches**.5), cls_token=True)
+        # self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
 
         # initialize nn.Linear and nn.LayerNorm
         self.apply(self._init_weights)
@@ -248,7 +248,7 @@ class Implicit(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    def forward(self, latent_depth, latent_semantic, points_3D):
+    def forward(self, latent_depth, latent_semantic, points_3D, pos):
         # concatenate latent codes if semantic is used
         latent = torch.cat([latent_depth, latent_semantic], dim=-1) if self.semantic else latent_depth
 
@@ -269,7 +269,8 @@ class Implicit(nn.Module):
         attn_vis = []
         for l, blk in enumerate(self.blocks_attn):
             if self.pos_perlayer or l == 0:
-                output[:, :N_latent] = output[:, :N_latent] + self.pos_embed
+                # print(f"pos shape: {pos.shape}, output shape: {output.shape}, using shape: {output[:, :N_latent].shape}")
+                output[:, :N_latent] = output[:, :N_latent] + pos
             output, attn = blk(output, points_feat.shape[1])
             attn_vis.append(attn)
         output = self.norm(output)
