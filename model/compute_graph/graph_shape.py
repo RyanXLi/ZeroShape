@@ -119,6 +119,9 @@ class Graph(nn.Module):
         return intr
 
     def forward(self, opt, var, training=False, get_loss=True):
+        # def log_tensor_strides(tensor, message):
+        #     print(f"{message}: sizes = {tensor.size()}, strides = {tensor.stride()}")
+
         batch_size = len(var.idx)
         
         # encode the rgb, [B, 3, H, W] -> [B, 1+H/(ws)*W/(ws), C], not used in our final model
@@ -153,7 +156,9 @@ class Graph(nn.Module):
         if opt.arch.depth.encoder == 'resnet':
             var.latent_depth = self.coord_encoder(seen_3D_dsp, mask_dsp)
         elif opt.arch.depth.encoder == 'threedetr':
+            # log_tensor_strides(seen_3D_dsp, "seen_3D_dsp Before operation XYZ")
             var.enc_pos, var.latent_depth = self.coord_encoder(seen_3D_dsp.permute(0, 2, 3, 1).contiguous(), mask_dsp.squeeze(1)>0.5)
+            # log_tensor_strides(seen_3D_dsp, "seen_3D_dsp After operation XYZ")
         else:
             var.latent_depth = self.coord_encoder(seen_3D_dsp.permute(0, 2, 3, 1).contiguous(), mask_dsp.squeeze(1)>0.5)
         
@@ -190,7 +195,16 @@ class Graph(nn.Module):
                 var.gt_surf_points = torch.gather(var.gt_points_cam, dim=1, index=close_surf_idx)
         
             # [B, N], [B, N, 1+feat_res**2], inference the impl_network for 3D loss
+            # def log_tensor_strides(tensor, message):
+            #     print(f"{message}: sizes = {tensor.size()}, strides = {tensor.stride()}")
+            # log_tensor_strides(var.latent_depth, "Before operation XYZ")
+            print(f"vram before running of impl_network: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
+            print(f"vram before running of impl_network: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
             var.pred_sample_occ, attn = self.impl_network(var.latent_depth, var.latent_semantic, var.gt_points_cam, pos=var.enc_pos)
+            print(f"vram after running of impl_network: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
+            print(f"vram after running of impl_network: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
+            # log_tensor_strides(var.latent_depth, "After operation XYZ")
+            
 
         # calculate the loss if needed
         if get_loss: 

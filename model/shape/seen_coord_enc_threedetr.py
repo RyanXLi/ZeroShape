@@ -122,6 +122,9 @@ class CoordEncThreeDetr(nn.Module):
             output_use_activation=True,
             hidden_use_bias=True,
         )
+        
+        # print(f"vram after init of threedetr: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
+        # print(f"vram after init of threedetr: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
         # self.decoder = build_decoder(opt.threedetr)
         # self.build_mlp_heads(dataset_config, decoder_dim, mlp_dropout)
 
@@ -183,6 +186,8 @@ class CoordEncThreeDetr(nn.Module):
     
 
     def forward(self, coord_obj, mask_obj):
+        print(f"vram before running of threedetr: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
+        print(f"vram before running of threedetr: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
 
         # image = image[~bg_mask, :]
         # image /= 255.0
@@ -201,8 +206,12 @@ class CoordEncThreeDetr(nn.Module):
         # shape of mask_obj: torch.Size([1, 224, 224])
         # shape of coord_obj: torch.Size([1, 224, 224, 3])
 
-        # coord_obj = coord_obj * mask_obj
-        coord_obj = coord_obj[mask_obj]
+        
+        # print(f"shape of mask_obj: {mask_obj.shape}")
+        # print(f"shape of coord_obj: {coord_obj.shape}")
+        # coord_obj = coord_obj[mask_obj]
+        coord_obj = coord_obj * mask_obj.unsqueeze(-1)
+        # print(f"shape of coord_obj after: {coord_obj.shape}")
         # print(f"max of coord_obj: {torch.max(coord_obj)}")
         # print(f"min of coord_obj: {torch.min(coord_obj)}")
         # print(f"mean of coord_obj: {torch.mean(coord_obj)}")
@@ -210,6 +219,7 @@ class CoordEncThreeDetr(nn.Module):
         # print()
 
         coord_obj = coord_obj.view(batch_size, -1, 3).contiguous()
+        # coord_obj = coord_obj[:, :25088, :]
 
         # ----------------- prev -------------------
         # # [B, 1, C]
@@ -225,8 +235,8 @@ class CoordEncThreeDetr(nn.Module):
 
         enc_xyz, enc_features, enc_inds = self.run_encoder(point_clouds)
         enc_features = self.encoder_to_decoder_projection(
-            enc_features.permute(1, 2, 0)
-        ).permute(2, 0, 1)
+            enc_features.permute(1, 2, 0).contiguous()
+        ).permute(2, 0, 1).contiguous()
         # encoder features: npoints x batch x channel
         # encoder xyz: npoints x batch x 3
 
@@ -236,18 +246,21 @@ class CoordEncThreeDetr(nn.Module):
         enc_pos = self.pos_embedding(enc_xyz, input_range=point_cloud_dims)
 
         # decoder expects: npoints x batch x channel
-        enc_pos = enc_pos.permute(0, 2, 1)
+        enc_pos = enc_pos.permute(0, 2, 1).contiguous()
         # query_embed = query_embed.permute(2, 0, 1)
         # tgt = torch.zeros_like(query_embed)
         # box_features = self.decoder(
         #     tgt, enc_features, query_pos=query_embed, pos=enc_pos
         # )[0]
 
+        print(f"vram after running of threedetr: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
+        print(f"vram after running of threedetr: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
+
 
 
     # if encoder_only:
         # return: batch x npoints x channels
-        return enc_pos, enc_features.transpose(0, 1)
+        return enc_pos, enc_features.transpose(0, 1).contiguous()
 
         # # point_cloud_dims = [
         # #     inputs["point_cloud_dims_min"],

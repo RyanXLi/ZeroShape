@@ -290,7 +290,8 @@ class Runner():
             if (self.it) % opt.freq.scalar == 0 and not opt.debug: 
                 self.log_scalars(opt, var, loss, step=self.it, split="train")
             if (self.it) % (opt.freq.save_vis * (self.it//10000*10+1)) == 0 and not opt.debug: 
-                self.vis_train_iter(opt)
+                # self.vis_train_iter(opt)
+                pass
             if (self.it) % opt.freq.print == 0:
                 print('[{}] '.format(datetime.datetime.now().time()), end='')
                 print(f'Train Iter {self.it}/{self.num_batches*opt.max_epoch}: {self.train_metric_logger}')
