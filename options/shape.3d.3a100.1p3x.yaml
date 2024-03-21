@@ -1,0 +1,173 @@
+group: shape
+name: shape_recon
+load: 
+
+batch_size: 27
+debug: false
+profile: false
+image_size: [224,224]
+gpu: 0
+max_epoch: 15
+output_root: output
+resume: false
+seed: 0
+yaml:
+
+pretrain:
+    depth: weights/depth.ckpt
+
+arch:
+    # general
+    num_heads: 8
+    latent_dim: 256
+    win_size: 16
+    # depth
+    depth:
+        encoder: threedetr
+        n_blocks: 12
+        dsp: 2
+        pretrained: model/depth/pretrained_weights/omnidata_dpt_depth_v2.ckpt
+    # rgb
+    rgb:
+        encoder: 
+        n_blocks: 12 
+    # implicit
+    impl:
+        n_channels: 256
+        # attention-related
+        att_blocks: 2
+        mlp_ratio: 4.
+        posenc_perlayer: false
+        # mlp-related
+        mlp_layers: 8
+        posenc_3D: 0
+        skip_in: [2,4,6]
+
+eval:
+    batch_size: 9
+    brute_force: false
+    n_vis: 50
+    vox_res: 64
+    num_points: 10000
+    range: [-1.5,1.5]
+    icp: false
+    f_thresholds: [0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
+
+data:
+    num_classes_test: 15
+    max_img_cat: 
+    dataset_train: synthetic
+    dataset_test: synthetic
+    num_workers: 6
+    bgcolor: 1
+    pix3d:                       
+        cat: 
+    ocrtoc:                       
+        cat: 
+        erode_mask: 
+    synthetic:        
+        subset: objaverse_LVIS,ShapeNet55
+        percentage: 1
+    train_sub:
+    val_sub:
+
+training:
+    n_sdf_points: 4096
+    shape_loss:
+        impt_weight: 1
+        impt_thres: 0.01
+    depth_loss:
+        grad_reg: 0.1
+        depth_inv: true
+        mask_shrink: false
+
+loss_weight:
+    shape: 1
+    depth: 
+    intr: 
+    
+optim:
+    lr: 1.e-5 #3.e-5
+    lr_ft: 3.33e-6 #1.e-5
+    weight_decay: 0.05
+    fix_dpt: false
+    fix_clip: true
+    clip_norm: 
+    amp: false
+    accum: 1
+    sched: true
+
+tb:
+    num_images: [4,8]
+
+freq:
+    print: 1 #200
+    print_eval: 1 #100
+    scalar: 1000 # iterations
+    vis: 1000 # iterations
+    save_vis: 1000
+    ckpt_latest: 1000 # iterations
+    eval: 1
+
+# change resnet to threedetr
+# add the following arguments
+threedetr:
+    # enc 
+    enc_type: "vanilla" # choices=["masked", "maskedv2", "vanilla"]
+    enc_nlayers: 3
+    enc_dim: 256
+    enc_ffn_dim: 128
+    enc_dropout: 0.1
+    enc_nhead: 4
+    enc_pos_embed: None
+    enc_activation: "relu"
+    # dec
+    dec_nlayers: 8
+    dec_dim: 256
+    dec_ffn_dim: 256
+    dec_dropout: 0.1
+    dec_nhead: 4
+    # mlp
+    mlp_dropout: 0.3
+    nsemcls: -1
+    # other
+    preenc_npoints: 2048
+    pos_embed: "fourier" # choices=["fourier", "sine"]
+    use_color: false
+
+# ### Encoder
+# parser.add_argument(
+#     "--enc_type", default="vanilla", choices=["masked", "maskedv2", "vanilla"]
+# )
+# # Below options are only valid for vanilla encoder
+# parser.add_argument("--enc_nlayers", default=3, type=int)
+# parser.add_argument("--enc_dim", default=256, type=int)
+# parser.add_argument("--enc_ffn_dim", default=128, type=int)
+# parser.add_argument("--enc_dropout", default=0.1, type=float)
+# parser.add_argument("--enc_nhead", default=4, type=int)
+# parser.add_argument("--enc_pos_embed", default=None, type=str)
+# parser.add_argument("--enc_activation", default="relu", type=str)
+
+# ### Decoder
+# parser.add_argument("--dec_nlayers", default=8, type=int)
+# parser.add_argument("--dec_dim", default=256, type=int)
+# parser.add_argument("--dec_ffn_dim", default=256, type=int)
+# parser.add_argument("--dec_dropout", default=0.1, type=float)
+# parser.add_argument("--dec_nhead", default=4, type=int)
+
+# ### MLP heads for predicting bounding boxes
+# parser.add_argument("--mlp_dropout", default=0.3, type=float)
+# parser.add_argument(
+#     "--nsemcls",
+#     default=-1,
+#     type=int,
+#     help="Number of semantic object classes. Can be inferred from dataset",
+# )
+
+# ### Other model params
+# parser.add_argument("--preenc_npoints", default=2048, type=int)
+# parser.add_argument(
+#     "--pos_embed", default="fourier", type=str, choices=["fourier", "sine"]
+# )
+# parser.add_argument("--nqueries", default=256, type=int)
+# parser.add_argument("--use_color", default=False, action="store_true")
