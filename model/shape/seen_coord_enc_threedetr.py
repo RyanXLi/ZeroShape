@@ -186,8 +186,8 @@ class CoordEncThreeDetr(nn.Module):
     
 
     def forward(self, coord_obj, mask_obj):
-        print(f"vram before running of threedetr: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
-        print(f"vram before running of threedetr: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
+        # print(f"vram before running of threedetr: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
+        # print(f"vram before running of threedetr: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
 
         # image = image[~bg_mask, :]
         # image /= 255.0
@@ -253,8 +253,8 @@ class CoordEncThreeDetr(nn.Module):
         #     tgt, enc_features, query_pos=query_embed, pos=enc_pos
         # )[0]
 
-        print(f"vram after running of threedetr: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
-        print(f"vram after running of threedetr: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
+        # print(f"vram after running of threedetr: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
+        # print(f"vram after running of threedetr: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
 
 
 

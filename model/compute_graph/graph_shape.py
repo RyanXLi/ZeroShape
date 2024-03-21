@@ -198,11 +198,11 @@ class Graph(nn.Module):
             # def log_tensor_strides(tensor, message):
             #     print(f"{message}: sizes = {tensor.size()}, strides = {tensor.stride()}")
             # log_tensor_strides(var.latent_depth, "Before operation XYZ")
-            print(f"vram before running of impl_network: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
-            print(f"vram before running of impl_network: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
+            # print(f"vram before running of impl_network: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
+            # print(f"vram before running of impl_network: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
             var.pred_sample_occ, attn = self.impl_network(var.latent_depth, var.latent_semantic, var.gt_points_cam, pos=var.enc_pos)
-            print(f"vram after running of impl_network: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
-            print(f"vram after running of impl_network: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
+            # print(f"vram after running of impl_network: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
+            # print(f"vram after running of impl_network: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
             # log_tensor_strides(var.latent_depth, "After operation XYZ")
             
 
