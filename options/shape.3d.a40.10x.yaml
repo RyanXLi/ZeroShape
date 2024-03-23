@@ -131,7 +131,7 @@ threedetr:
     mlp_dropout: 0.3
     nsemcls: -1
     # other
-    preenc_npoints: 2048
+    preenc_npoints: 256
     pos_embed: "fourier" # choices=["fourier", "sine"]
     use_color: false
 
