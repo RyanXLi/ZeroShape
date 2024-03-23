@@ -260,6 +260,8 @@ class CoordEncThreeDetr(nn.Module):
 
     # if encoder_only:
         # return: batch x npoints x channels
+        print(f"enc_features.shape: {enc_features.shape}")
+        print(f"enc_pos.shape: {enc_pos.shape}")
         return enc_pos, enc_features.transpose(0, 1).contiguous()
 
         # # point_cloud_dims = [
