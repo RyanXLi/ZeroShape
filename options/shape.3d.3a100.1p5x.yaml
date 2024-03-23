@@ -2,7 +2,7 @@ group: shape
 name: shape_recon
 load: 
 
-batch_size: 168
+batch_size: 252
 debug: false
 profile: false
 image_size: [224,224]
@@ -44,7 +44,7 @@ arch:
         skip_in: [2,4,6]
 
 eval:
-    batch_size: 48
+    batch_size: 72
     brute_force: false
     n_vis: 50
     vox_res: 64
@@ -87,8 +87,8 @@ loss_weight:
     intr: 
     
 optim:
-    lr: 4.e-5 #3.e-5
-    lr_ft: 1.33e-5 #1.e-5
+    lr: 6.e-5 #3.e-5
+    lr_ft: 2.e-5 #1.e-5
     weight_decay: 0.05
     fix_dpt: false
     fix_clip: true
