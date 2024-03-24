@@ -173,6 +173,9 @@ class Dataset(base.Dataset):
             gt_sample_sdf=gt_sample_sdf,
         )
 
+        fname = f"{category}/{category}_{object_name}_{sample_id}"
+        print(fname)
+
         return sample
 
     def get_1d_bounds(self, arr):
