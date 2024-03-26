@@ -2,7 +2,7 @@ group: shape
 name: shape_recon
 load: 
 
-batch_size: 1
+batch_size: 4
 debug: false
 profile: false
 image_size: [224,224]
@@ -107,7 +107,7 @@ freq:
     vis: 1000 # iterations
     save_vis: 1000
     ckpt_latest: 1000 # iterations
-    eval: 5
+    eval: 1
 
 # change resnet to threedetr
 # add the following arguments

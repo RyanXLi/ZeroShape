@@ -48,9 +48,6 @@ class Dataset(base.Dataset):
     
     # read the list file, return a list of (category, object_name, sample_id)
     def get_list(self, opt, split):
-        # read bad data and also remove trailing newline
-        bad_data = open(f"./bb2.txt").read().splitlines() #bad_batch
-
         data_list = []
         for subset in self.subsets:
             for cat in self.category_dict[subset]:
@@ -60,17 +57,10 @@ class Dataset(base.Dataset):
                 lines = open(list_fname).read().splitlines()
                 lines = lines[:round(self.data_percentage*len(lines))]
                 for i, img_fname in enumerate(lines):
-                    
                     if i >= self.max_imgs: break
                     name = '.'.join(img_fname.split('.')[:-1])
                     object_name = name.split('_')[-2]
                     sample_id = name.split('_')[-1]
-
-                    # if split == "train":
-                    fname = f"{cat}/{cat}_{object_name}_{sample_id}"
-                    if fname not in bad_data:
-                        continue
-
                     data_list.append((subset, cat, object_name, sample_id))
         return data_list
 
@@ -183,8 +173,8 @@ class Dataset(base.Dataset):
             gt_sample_sdf=gt_sample_sdf,
         )
 
-        fname = f"{category}/{category}_{object_name}_{sample_id}"
-        print(fname)
+        # fname = f"{category}/{category}_{object_name}_{sample_id}"
+        # print(fname)
 
         return sample
 

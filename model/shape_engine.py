@@ -50,7 +50,7 @@ class Runner():
         data_test = importlib.import_module('data.{}'.format(opt.data.dataset_test))
         if opt.device == 0: print("loading training data...")
         self.train_data = data_train.Dataset(opt, split="train")
-        self.train_loader = self.train_data.setup_loader(opt, shuffle=False, use_ddp=True, drop_last=True)
+        self.train_loader = self.train_data.setup_loader(opt, shuffle=True, use_ddp=True, drop_last=True)
         self.num_batches = len(self.train_loader)
         if opt.device == 0: print("loading test data...")
         self.test_data = data_test.Dataset(opt, split=eval_split)
