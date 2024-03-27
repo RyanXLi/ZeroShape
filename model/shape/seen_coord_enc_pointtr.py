@@ -743,7 +743,7 @@ class CoordEncPointTr(nn.Module):
 
         # Assuming coord_obj and mask_obj are defined as per the problem statement
         B, _, H, W = coord_obj.size()  # Bx3x244x244
-        N = 20000  # Number of pixels to sample
+        N = 15000  # Number of pixels to sample
 
         # Step 1: Flatten mask_obj to get a 2D tensor of shape Bx(244x244)
         mask_flat = mask_obj.view(B, -1)
