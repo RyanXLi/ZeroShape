@@ -23,7 +23,7 @@ arch:
     win_size: 16
     # depth
     depth:
-        encoder: threedetr
+        encoder: pointtr
         n_blocks: 12
         dsp: 2
         pretrained: model/depth/pretrained_weights/omnidata_dpt_depth_v2.ckpt
