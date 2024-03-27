@@ -734,11 +734,40 @@ class CoordEncPointTr(nn.Module):
             nn.init.constant_(m.weight, 1.0)
 
     def forward(self, coord_obj, mask_obj):
-        coord_obj = coord_obj[:, :, :100, :100]
-        mask_obj = mask_obj[:, :, :100, :100]
-        batch_size = coord_obj.shape[0]
-        coord_obj = coord_obj * mask_obj
-        xyz = coord_obj.view(batch_size, 3, -1).contiguous() # B 3 N
+        # # print(mask_obj[0].sum())
+        # coord_obj = coord_obj[:, :, :100, :100]
+        # mask_obj = mask_obj[:, :, :100, :100]
+        # batch_size = coord_obj.shape[0]
+        # coord_obj = coord_obj * mask_obj
+        # xyz = coord_obj.view(batch_size, 3, -1).contiguous() # B 3 N
+
+        # Assuming coord_obj and mask_obj are defined as per the problem statement
+        B, _, H, W = coord_obj.size()  # Bx3x244x244
+        N = 20000  # Number of pixels to sample
+
+        # Step 1: Flatten mask_obj to get a 2D tensor of shape Bx(244x244)
+        mask_flat = mask_obj.view(B, -1)
+
+        # Step 2: Convert the mask to float (for multinomial weights)
+        mask_flat_float = mask_flat.float()
+
+        # Step 3: Sample N indices from each batch based on the flattened mask
+        # Use multinomial with the number of samples and replacement set to True
+        sampled_indices = torch.multinomial(mask_flat_float, num_samples=N, replacement=True)
+        sampled_indices = sampled_indices.unsqueeze(1).expand(-1, 3, -1)
+
+        # Step 4: Flatten coord_obj similarly to facilitate gathering
+        coord_flat = coord_obj.view(B, 3, -1)
+
+        # Step 5: Use the sampled indices to gather the pixels
+        # For each batch, we gather from the corresponding set of indices
+        # This requires expanding the indices to match the coord dimensions
+        # sampled_indices_expanded = sampled_indices.unsqueeze(1).expand(-1, 3, -1)
+
+        # Gather the samples. Since gather works on the last dimension, transpose the dimensions of coord_flat first
+        # xyz = torch.gather(coord_flat.transpose(1, 2), 1, sampled_indices_expanded).transpose(1, 2)
+        xyz  = torch.gather(coord_flat, 2, sampled_indices)
+
 
         bs = xyz.size(0)
         coor, f = self.grouper(xyz, self.center_num) # b n c
