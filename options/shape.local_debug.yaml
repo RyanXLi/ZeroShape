@@ -19,11 +19,11 @@ pretrain:
 arch:
     # general
     num_heads: 8
-    latent_dim: 256
+    latent_dim: 384
     win_size: 16
     # depth
     depth:
-        encoder: threedetr
+        encoder: pointtr #threedetr
         n_blocks: 12
         dsp: 2
         pretrained: model/depth/pretrained_weights/omnidata_dpt_depth_v2.ckpt
@@ -109,31 +109,42 @@ freq:
     ckpt_latest: 1000 # iterations
     eval: 1
 
-# change resnet to threedetr
-# add the following arguments
-threedetr:
-    # enc 
-    enc_type: "vanilla" # choices=["masked", "maskedv2", "vanilla"]
-    enc_nlayers: 3
-    enc_dim: 256
-    enc_ffn_dim: 128
-    enc_dropout: 0.1
-    enc_nhead: 4
-    enc_pos_embed: None
-    enc_activation: "relu"
-    # dec
-    dec_nlayers: 8
-    dec_dim: 256
-    dec_ffn_dim: 256
-    dec_dropout: 0.1
-    dec_nhead: 4
-    # mlp
-    mlp_dropout: 0.3
-    nsemcls: -1
-    # other
-    preenc_npoints: 256
-    pos_embed: "fourier" # choices=["fourier", "sine"]
-    use_color: false
+# # change resnet to threedetr
+# # add the following arguments
+# threedetr:
+#     # enc 
+#     enc_type: "vanilla" # choices=["masked", "maskedv2", "vanilla"]
+#     enc_nlayers: 3
+#     enc_dim: 256
+#     enc_ffn_dim: 128
+#     enc_dropout: 0.1
+#     enc_nhead: 4
+#     enc_pos_embed: None
+#     enc_activation: "relu"
+#     # dec
+#     dec_nlayers: 8
+#     dec_dim: 256
+#     dec_ffn_dim: 256
+#     dec_dropout: 0.1
+#     dec_nhead: 4
+#     # mlp
+#     mlp_dropout: 0.3
+#     nsemcls: -1
+#     # other
+#     preenc_npoints: 256
+#     pos_embed: "fourier" # choices=["fourier", "sine"]
+#     use_color: false
+
+pointtr:
+    encoder_config:
+        embed_dim: 384
+        depth: 6
+        num_heads: 6
+        k: 8
+        n_group: 2
+        mlp_ratio: 2.
+        block_style_list: ['attn-graph', 'attn', 'attn', 'attn', 'attn', 'attn']
+        combine_style: 'concat'
 
 # ### Encoder
 # parser.add_argument(

@@ -188,7 +188,7 @@ class Implicit(nn.Module):
     Implicit function conditioned on depth encodings
     """
     def __init__(self,
-                 num_patches, latent_dim=768, semantic=False, n_channels=512,
+                 num_patches, latent_dim=256, semantic=False, n_channels=512,
                  n_blocks_attn=2, n_layers_mlp=6, num_heads=16, posenc_3D=0,
                  mlp_ratio=4., norm_layer=partial(nn.LayerNorm, eps=1e-6), drop_path=0.1,
                  skip_in=[], pos_perlayer=True):

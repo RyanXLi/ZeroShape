@@ -6,6 +6,7 @@ from utils.loss import Loss
 from model.shape.implicit import Implicit
 from model.shape.seen_coord_enc import CoordEncAtt, CoordEncRes
 from model.shape.seen_coord_enc_threedetr import CoordEncThreeDetr
+from model.shape.seen_coord_enc_pointtr import CoordEncPointTr
 from model.shape.rgb_enc import RGBEncAtt, RGBEncRes
 from model.depth.dpt_depth import DPTDepthModel
 from utils.util import toggle_grad, interpolate_coordmap, get_child_state_dict
@@ -42,6 +43,9 @@ class Graph(nn.Module):
         if opt.arch.depth.encoder == 'resnet':
             opt.arch.depth.dsp = 1
             self.coord_encoder = CoordEncRes(opt)
+        elif opt.arch.depth.encoder == 'pointtr':
+            opt.arch.depth.dsp = 1
+            self.coord_encoder = CoordEncPointTr(opt)
         elif opt.arch.depth.encoder == 'threedetr':
             opt.arch.depth.dsp = 1
             self.coord_encoder = CoordEncThreeDetr(opt)
@@ -52,6 +56,8 @@ class Graph(nn.Module):
         # rgb branch (not used in final model, keep here for extension)
         if opt.arch.rgb.encoder == 'resnet':
             self.rgb_encoder = RGBEncRes(opt)
+        elif opt.arch.depth.encoder == 'pointtr':
+            self.rgb_encoder = None
         elif opt.arch.depth.encoder == 'threedetr':
             self.rgb_encoder = None
         elif opt.arch.rgb.encoder == 'transformer':
@@ -155,6 +161,8 @@ class Graph(nn.Module):
         # encode the depth, [B, 1, H/k, W/k] -> [B, 1+H/(ws)*W/(ws), C]
         if opt.arch.depth.encoder == 'resnet':
             var.latent_depth = self.coord_encoder(seen_3D_dsp, mask_dsp)
+        elif opt.arch.depth.encoder == 'pointtr':
+            var.enc_pos, var.latent_depth = self.coord_encoder(seen_3D_dsp, mask_dsp>0.5)
         elif opt.arch.depth.encoder == 'threedetr':
             # log_tensor_strides(seen_3D_dsp, "seen_3D_dsp Before operation XYZ")
             var.enc_pos, var.latent_depth = self.coord_encoder(seen_3D_dsp.permute(0, 2, 3, 1).contiguous(), mask_dsp.squeeze(1)>0.5)

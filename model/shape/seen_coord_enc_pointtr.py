@@ -7,8 +7,9 @@ import torch
 import torch.nn as nn
 from functools import partial, reduce
 from timm.models.layers import DropPath, trunc_normal_
-from models.shape.pointtr_Transformer_utils import *
-from utils import misc
+from .pointtr_Transformer_utils import *
+
+from utils import pointtr_misc as misc
 
 class SelfAttnBlockApi(nn.Module):
     r'''
@@ -590,7 +591,8 @@ class DGCNN_Grouper(nn.Module):
                 coor bs N 3
                 f    bs N C(128) 
         '''
-        x = x.transpose(-1, -2).contiguous()
+        # x = x.transpose(-1, -2).contiguous()
+        x = x.contiguous()
 
         coor = x
         f = self.input_trans(x)
@@ -690,25 +692,18 @@ class SimpleEncoder(nn.Module):
 
 
 class CoordEncPointTr(nn.Module):
+    """ 
+    Seen surface encoder based on threedetr encoder, includes a pointnet++ layer and a transformer encoder.
+    """
     def __init__(self, opt):
         super().__init__()
 
-        encoder_config = opt.pointtr.encoder
-        # decoder_config = config.decoder_config
-        self.center_num  = getattr(config, 'center_num', [512, 128])
-        self.encoder_type = config.encoder_type
-        assert self.encoder_type in ['graph', 'pn'], f'unexpected encoder_type {self.encoder_type}'
-
+        encoder_config = opt.pointtr.encoder_config
+        self.center_num = [512, 256]
+        self.encoder_type = 'graph'
         in_chans = 3
-        self.num_query = query_num = config.num_query
-        global_feature_dim = config.global_feature_dim
 
-        print_log(f'Transformer with config {config}', logger='MODEL')
-        # base encoder
-        if self.encoder_type == 'graph':
-            self.grouper = DGCNN_Grouper(k = 16)
-        else:
-            self.grouper = SimpleEncoder(k = 32, embed_dims=512)
+        self.grouper = DGCNN_Grouper(k = 16)
         self.pos_embed = nn.Sequential(
             nn.Linear(in_chans, 128),
             nn.GELU(),
@@ -719,98 +714,39 @@ class CoordEncPointTr(nn.Module):
             nn.GELU(),
             nn.Linear(512, encoder_config.embed_dim)
         )
-        # Coarse Level 1 : Encoder
         self.encoder = PointTransformerEncoderEntry(encoder_config)
+
+        self.pos_embed_dec = nn.Sequential(
+            nn.Linear(in_chans, 128),
+            nn.GELU(),
+            nn.Linear(128, 256)
+        )  
+
         self.apply(self._init_weights)
 
-
-        # ------------ begin threedetr --------------
-        encoder_dim=256
-        decoder_dim=256
-        position_embedding="fourier"
-        mlp_dropout=0.3
-        
-        self.pre_encoder = build_preencoder(opt.threedetr)
-        self.encoder = build_encoder(opt.threedetr)
-        if hasattr(self.encoder, "masking_radius"):
-            hidden_dims = [encoder_dim]
-        else:
-            hidden_dims = [encoder_dim, encoder_dim]
-        self.encoder_to_decoder_projection = GenericMLP(
-            input_dim=encoder_dim,
-            hidden_dims=hidden_dims,
-            output_dim=decoder_dim,
-            norm_fn_name="bn1d",
-            activation="relu",
-            use_conv=True,
-            output_use_activation=True,
-            output_use_norm=True,
-            output_use_bias=False,
-        )
-        self.pos_embedding = PositionEmbeddingCoordsSine(
-            d_pos=decoder_dim, pos_type=position_embedding, normalize=False
-        )
-        self.query_projection = GenericMLP(
-            input_dim=decoder_dim,
-            hidden_dims=[decoder_dim],
-            output_dim=decoder_dim,
-            use_conv=True,
-            output_use_activation=True,
-            hidden_use_bias=True,
-        )
-   
-    def _break_up_pc(self, pc):
-        # pc may contain color/normals.
-
-        xyz = pc[..., 0:3].contiguous()
-        features = pc[..., 3:].transpose(1, 2).contiguous() if pc.size(-1) > 3 else None
-        return xyz, features
-
-    def run_encoder(self, point_clouds):
-        xyz, features = self._break_up_pc(point_clouds)
-        pre_enc_xyz, pre_enc_features, pre_enc_inds = self.pre_encoder(xyz, features)
-        # xyz: batch x npoints x 3
-        # features: batch x channel x npoints
-        # inds: batch x npoints
-
-        # nn.MultiHeadAttention in encoder expects npoints x batch x channel features
-        pre_enc_features = pre_enc_features.permute(2, 0, 1)
-
-        # xyz points are in batch x npointx channel order
-        enc_xyz, enc_features, enc_inds = self.encoder(
-            pre_enc_features, xyz=pre_enc_xyz
-        )
-        if enc_inds is None:
-            # encoder does not perform any downsampling
-            enc_inds = pre_enc_inds
-        else:
-            # use gather here to ensure that it works for both FPS and random sampling
-            enc_inds = torch.gather(pre_enc_inds, 1, enc_inds.type(torch.int64))
-        return enc_xyz, enc_features, enc_inds
-    
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            trunc_normal_(m.weight, std=.02)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
 
     def forward(self, coord_obj, mask_obj):
+        coord_obj = coord_obj[:, :, :100, :100]
+        mask_obj = mask_obj[:, :, :100, :100]
         batch_size = coord_obj.shape[0]
-        coord_obj = coord_obj * mask_obj.unsqueeze(-1)
-        coord_obj = coord_obj.view(batch_size, -1, 3).contiguous()
-        point_clouds = coord_obj
+        coord_obj = coord_obj * mask_obj
+        xyz = coord_obj.view(batch_size, 3, -1).contiguous() # B 3 N
 
-        enc_xyz, enc_features, enc_inds = self.run_encoder(point_clouds)
-        enc_features = self.encoder_to_decoder_projection(
-            enc_features.permute(1, 2, 0).contiguous()
-        ).permute(2, 0, 1).contiguous()
-        # encoder features: npoints x batch x channel
-        # encoder xyz: npoints x batch x 3
+        bs = xyz.size(0)
+        coor, f = self.grouper(xyz, self.center_num) # b n c
+        pe =  self.pos_embed(coor)
+        x = self.input_proj(f)
 
-        point_cloud_dims = [torch.tensor(-1.).to(point_clouds.device), torch.tensor(1.).to(point_clouds.device)]
-        # query_xyz, query_embed = self.get_query_embeddings(enc_xyz, point_cloud_dims)
-        # # query_embed: batch x channel x npoint
-        enc_pos = self.pos_embedding(enc_xyz, input_range=point_cloud_dims)
-
-        # decoder expects: npoints x batch x channel
-        enc_pos = enc_pos.permute(0, 2, 1).contiguous()
-
-        return enc_pos, enc_features.transpose(0, 1).contiguous()
+        x = self.encoder(x + pe, coor) # b n c
+        return self.pos_embed_dec(coor), x
 
 
 
@@ -847,41 +783,6 @@ class PCTransformer(nn.Module):
         )
         # Coarse Level 1 : Encoder
         self.encoder = PointTransformerEncoderEntry(encoder_config)
-
-        # self.increase_dim = nn.Sequential(
-        #     nn.Linear(encoder_config.embed_dim, 1024),
-        #     nn.GELU(),
-        #     nn.Linear(1024, global_feature_dim))
-        # # query generator
-        # self.coarse_pred = nn.Sequential(
-        #     nn.Linear(global_feature_dim, 1024),
-        #     nn.GELU(),
-        #     nn.Linear(1024, 3 * query_num)
-        # )
-        # self.mlp_query = nn.Sequential(
-        #     nn.Linear(global_feature_dim + 3, 1024),
-        #     nn.GELU(),
-        #     nn.Linear(1024, 1024),
-        #     nn.GELU(),
-        #     nn.Linear(1024, decoder_config.embed_dim)
-        # )
-        # # assert decoder_config.embed_dim == encoder_config.embed_dim
-        # if decoder_config.embed_dim == encoder_config.embed_dim:
-        #     self.mem_link = nn.Identity()
-        # else:
-        #     self.mem_link = nn.Linear(encoder_config.embed_dim, decoder_config.embed_dim)
-        # # Coarse Level 2 : Decoder
-        # self.decoder = PointTransformerDecoderEntry(decoder_config)
- 
-        # self.query_ranking = nn.Sequential(
-        #     nn.Linear(3, 256),
-        #     nn.GELU(),
-        #     nn.Linear(256, 256),
-        #     nn.GELU(),
-        #     nn.Linear(256, 1),
-        #     nn.Sigmoid()
-        # )
-
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -900,51 +801,54 @@ class PCTransformer(nn.Module):
         x = self.input_proj(f)
 
         x = self.encoder(x + pe, coor) # b n c
-        global_feature = self.increase_dim(x) # B 1024 N 
-        global_feature = torch.max(global_feature, dim=1)[0] # B 1024
+        return pe, x
 
-        coarse = self.coarse_pred(global_feature).reshape(bs, -1, 3)
+        # global_feature = self.increase_dim(x) # B 1024 N 
+        # global_feature = torch.max(global_feature, dim=1)[0] # B 1024
 
-        coarse_inp = misc.fps(xyz, self.num_query//2) # B 128 3
-        coarse = torch.cat([coarse, coarse_inp], dim=1) # B 224+128 3?
+        # coarse = self.coarse_pred(global_feature).reshape(bs, -1, 3)
 
-        mem = self.mem_link(x)
+        # coarse_inp = misc.fps(xyz, self.num_query//2) # B 128 3
+        # coarse = torch.cat([coarse, coarse_inp], dim=1) # B 224+128 3?
 
-        # query selection
-        query_ranking = self.query_ranking(coarse) # b n 1
-        idx = torch.argsort(query_ranking, dim=1, descending=True) # b n 1
-        coarse = torch.gather(coarse, 1, idx[:,:self.num_query].expand(-1, -1, coarse.size(-1)))
+        # mem = self.mem_link(x)
+        
 
-        if self.training:
-            # add denoise task
-            # first pick some point : 64?
-            picked_points = misc.fps(xyz, 64)
-            picked_points = misc.jitter_points(picked_points)
-            coarse = torch.cat([coarse, picked_points], dim=1) # B 256+64 3?
-            denoise_length = 64     
+        # # query selection
+        # query_ranking = self.query_ranking(coarse) # b n 1
+        # idx = torch.argsort(query_ranking, dim=1, descending=True) # b n 1
+        # coarse = torch.gather(coarse, 1, idx[:,:self.num_query].expand(-1, -1, coarse.size(-1)))
 
-            # produce query
-            q = self.mlp_query(
-            torch.cat([
-                global_feature.unsqueeze(1).expand(-1, coarse.size(1), -1),
-                coarse], dim = -1)) # b n c
+        # if self.training:
+        #     # add denoise task
+        #     # first pick some point : 64?
+        #     picked_points = misc.fps(xyz, 64)
+        #     picked_points = misc.jitter_points(picked_points)
+        #     coarse = torch.cat([coarse, picked_points], dim=1) # B 256+64 3?
+        #     denoise_length = 64     
 
-            # forward decoder
-            q = self.decoder(q=q, v=mem, q_pos=coarse, v_pos=coor, denoise_length=denoise_length)
+        #     # produce query
+        #     q = self.mlp_query(
+        #     torch.cat([
+        #         global_feature.unsqueeze(1).expand(-1, coarse.size(1), -1),
+        #         coarse], dim = -1)) # b n c
 
-            return q, coarse, denoise_length
+        #     # forward decoder
+        #     q = self.decoder(q=q, v=mem, q_pos=coarse, v_pos=coor, denoise_length=denoise_length)
 
-        else:
-            # produce query
-            q = self.mlp_query(
-            torch.cat([
-                global_feature.unsqueeze(1).expand(-1, coarse.size(1), -1),
-                coarse], dim = -1)) # b n c
+        #     return q, coarse, denoise_length
+
+        # else:
+        #     # produce query
+        #     q = self.mlp_query(
+        #     torch.cat([
+        #         global_feature.unsqueeze(1).expand(-1, coarse.size(1), -1),
+        #         coarse], dim = -1)) # b n c
             
-            # forward decoder
-            q = self.decoder(q=q, v=mem, q_pos=coarse, v_pos=coor)
+        #     # forward decoder
+        #     q = self.decoder(q=q, v=mem, q_pos=coarse, v_pos=coor)
 
-            return q, coarse, 0
+        #     return q, coarse, 0
 
 ######################################## PoinTr ########################################  
 
