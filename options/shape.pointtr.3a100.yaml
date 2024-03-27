@@ -2,7 +2,7 @@ group: shape
 name: shape_recon
 load: 
 
-batch_size: 36
+batch_size: 78 # 26 per card for a40 # 13 per card for a40,
 debug: false
 profile: false
 image_size: [224,224]
