@@ -701,7 +701,7 @@ class CoordEncPointTr(nn.Module):
         super().__init__()
 
         encoder_config = opt.pointtr.encoder_config
-        self.center_num = [512, 128]
+        self.center_num = [512, 256]
         self.encoder_type = 'graph'
         in_chans = 3
 
