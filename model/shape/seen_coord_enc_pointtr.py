@@ -602,6 +602,7 @@ class DGCNN_Grouper(nn.Module):
         f = f.max(dim=-1, keepdim=False)[0]
 
         coor_q, f_q = self.fps_downsample(coor, f, num[0])
+        # is_zero_1 = (coor_q.sum(1) == torch.tensor(0.).to(coor_q.device)).sum()
         f = self.get_graph_feature(coor_q, f_q, coor, f)
         f = self.layer2(f)
         f = f.max(dim=-1, keepdim=False)[0]
@@ -612,6 +613,7 @@ class DGCNN_Grouper(nn.Module):
         f = f.max(dim=-1, keepdim=False)[0]
 
         coor_q, f_q = self.fps_downsample(coor, f, num[1])
+        # is_zero_2 = (coor_q.sum(1) == torch.tensor(0.).to(coor_q.device)).sum()
         f = self.get_graph_feature(coor_q, f_q, coor, f)
         f = self.layer4(f)
         f = f.max(dim=-1, keepdim=False)[0]
@@ -699,7 +701,7 @@ class CoordEncPointTr(nn.Module):
         super().__init__()
 
         encoder_config = opt.pointtr.encoder_config
-        self.center_num = [512, 256]
+        self.center_num = [512, 128]
         self.encoder_type = 'graph'
         in_chans = 3
 
@@ -741,32 +743,63 @@ class CoordEncPointTr(nn.Module):
         # coord_obj = coord_obj * mask_obj
         # xyz = coord_obj.view(batch_size, 3, -1).contiguous() # B 3 N
 
-        # Assuming coord_obj and mask_obj are defined as per the problem statement
-        B, _, H, W = coord_obj.size()  # Bx3x244x244
-        N = 15000  # Number of pixels to sample
+        # sample N points from pc
+        # 1. the samples should have valid mask
+        # 2. the samples are uniformly sampled, if valid points are less than N, 
+        # then use all valid points and pad with samples with replacement
+        pc = coord_obj.permute(0, 2, 3, 1).view(coord_obj.size(0), -1, 3).contiguous()
+        mask = mask_obj.view(mask_obj.size(0), -1).contiguous()
+        num_points = 15000
 
-        # Step 1: Flatten mask_obj to get a 2D tensor of shape Bx(244x244)
-        mask_flat = mask_obj.view(B, -1)
+        sampled_pc = []
+        for b in range(pc.shape[0]):
+            # [N_valid]
+            valid_idx = torch.nonzero(mask[b]).squeeze(1)
+            N_valid = valid_idx.shape[0]
+            # [N_valid, 3]
+            pc_valid = pc[b][valid_idx]
+            if N_valid >= num_points:
+                # samples without replacement, [num_points, 3]
+                sampled_pc.append(pc_valid[torch.randperm(N_valid)[:num_points]])
+            else:
+                # all valid points, [N_valid, 3]
+                pc_valid_all = pc_valid[torch.randperm(N_valid)]
+                # pad with zeros, [num_points-N_valid, 3]
+                pc_valid_pad = torch.zeros(num_points-N_valid, 3).to(pc_valid.device)
+                # [num_points, 3]
+                sampled_pc.append(torch.cat([pc_valid_all, pc_valid_pad], dim=0))
+        # [B, num_points, 3]
+        xyz = torch.stack(sampled_pc, dim=0)
+        xyz = xyz.transpose(-1, -2).contiguous()
 
-        # Step 2: Convert the mask to float (for multinomial weights)
-        mask_flat_float = mask_flat.float()
+        ########################### random sample w replacements ############################
 
-        # Step 3: Sample N indices from each batch based on the flattened mask
-        # Use multinomial with the number of samples and replacement set to True
-        sampled_indices = torch.multinomial(mask_flat_float, num_samples=N, replacement=True)
-        sampled_indices = sampled_indices.unsqueeze(1).expand(-1, 3, -1)
+        # # Assuming coord_obj and mask_obj are defined as per the problem statement
+        # B, _, H, W = coord_obj.size()  # Bx3x244x244
+        # N = 15000  # Number of pixels to sample
 
-        # Step 4: Flatten coord_obj similarly to facilitate gathering
-        coord_flat = coord_obj.view(B, 3, -1)
+        # # Step 1: Flatten mask_obj to get a 2D tensor of shape Bx(244x244)
+        # mask_flat = mask_obj.view(B, -1)
 
-        # Step 5: Use the sampled indices to gather the pixels
-        # For each batch, we gather from the corresponding set of indices
-        # This requires expanding the indices to match the coord dimensions
-        # sampled_indices_expanded = sampled_indices.unsqueeze(1).expand(-1, 3, -1)
+        # # Step 2: Convert the mask to float (for multinomial weights)
+        # mask_flat_float = mask_flat.float()
 
-        # Gather the samples. Since gather works on the last dimension, transpose the dimensions of coord_flat first
-        # xyz = torch.gather(coord_flat.transpose(1, 2), 1, sampled_indices_expanded).transpose(1, 2)
-        xyz  = torch.gather(coord_flat, 2, sampled_indices)
+        # # Step 3: Sample N indices from each batch based on the flattened mask
+        # # Use multinomial with the number of samples and replacement set to True
+        # sampled_indices = torch.multinomial(mask_flat_float, num_samples=N, replacement=True)
+        # sampled_indices = sampled_indices.unsqueeze(1).expand(-1, 3, -1)
+
+        # # Step 4: Flatten coord_obj similarly to facilitate gathering
+        # coord_flat = coord_obj.view(B, 3, -1)
+
+        # # Step 5: Use the sampled indices to gather the pixels
+        # # For each batch, we gather from the corresponding set of indices
+        # # This requires expanding the indices to match the coord dimensions
+        # # sampled_indices_expanded = sampled_indices.unsqueeze(1).expand(-1, 3, -1)
+
+        # # Gather the samples. Since gather works on the last dimension, transpose the dimensions of coord_flat first
+        # # xyz = torch.gather(coord_flat.transpose(1, 2), 1, sampled_indices_expanded).transpose(1, 2)
+        # xyz  = torch.gather(coord_flat, 2, sampled_indices)
 
 
         bs = xyz.size(0)
@@ -780,106 +813,106 @@ class CoordEncPointTr(nn.Module):
 
 
 
-######################################## PCTransformer ########################################   
-class PCTransformer(nn.Module):
-    def __init__(self, config):
-        super().__init__()
-        encoder_config = config.encoder_config
-        decoder_config = config.decoder_config
-        self.center_num  = getattr(config, 'center_num', [512, 128])
-        self.encoder_type = config.encoder_type
-        assert self.encoder_type in ['graph', 'pn'], f'unexpected encoder_type {self.encoder_type}'
+# ######################################## PCTransformer ########################################   
+# class PCTransformer(nn.Module):
+#     def __init__(self, config):
+#         super().__init__()
+#         encoder_config = config.encoder_config
+#         decoder_config = config.decoder_config
+#         self.center_num  = getattr(config, 'center_num', [512, 128])
+#         self.encoder_type = config.encoder_type
+#         assert self.encoder_type in ['graph', 'pn'], f'unexpected encoder_type {self.encoder_type}'
 
-        in_chans = 3
-        self.num_query = query_num = config.num_query
-        global_feature_dim = config.global_feature_dim
+#         in_chans = 3
+#         self.num_query = query_num = config.num_query
+#         global_feature_dim = config.global_feature_dim
 
-        print_log(f'Transformer with config {config}', logger='MODEL')
-        # base encoder
-        if self.encoder_type == 'graph':
-            self.grouper = DGCNN_Grouper(k = 16)
-        else:
-            self.grouper = SimpleEncoder(k = 32, embed_dims=512)
-        self.pos_embed = nn.Sequential(
-            nn.Linear(in_chans, 128),
-            nn.GELU(),
-            nn.Linear(128, encoder_config.embed_dim)
-        )  
-        self.input_proj = nn.Sequential(
-            nn.Linear(self.grouper.num_features, 512),
-            nn.GELU(),
-            nn.Linear(512, encoder_config.embed_dim)
-        )
-        # Coarse Level 1 : Encoder
-        self.encoder = PointTransformerEncoderEntry(encoder_config)
-        self.apply(self._init_weights)
+#         print_log(f'Transformer with config {config}', logger='MODEL')
+#         # base encoder
+#         if self.encoder_type == 'graph':
+#             self.grouper = DGCNN_Grouper(k = 16)
+#         else:
+#             self.grouper = SimpleEncoder(k = 32, embed_dims=512)
+#         self.pos_embed = nn.Sequential(
+#             nn.Linear(in_chans, 128),
+#             nn.GELU(),
+#             nn.Linear(128, encoder_config.embed_dim)
+#         )  
+#         self.input_proj = nn.Sequential(
+#             nn.Linear(self.grouper.num_features, 512),
+#             nn.GELU(),
+#             nn.Linear(512, encoder_config.embed_dim)
+#         )
+#         # Coarse Level 1 : Encoder
+#         self.encoder = PointTransformerEncoderEntry(encoder_config)
+#         self.apply(self._init_weights)
 
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
+#     def _init_weights(self, m):
+#         if isinstance(m, nn.Linear):
+#             trunc_normal_(m.weight, std=.02)
+#             if isinstance(m, nn.Linear) and m.bias is not None:
+#                 nn.init.constant_(m.bias, 0)
+#         elif isinstance(m, nn.LayerNorm):
+#             nn.init.constant_(m.bias, 0)
+#             nn.init.constant_(m.weight, 1.0)
 
-    def forward(self, xyz):
-        bs = xyz.size(0)
-        coor, f = self.grouper(xyz, self.center_num) # b n c
-        pe =  self.pos_embed(coor)
-        x = self.input_proj(f)
+#     def forward(self, xyz):
+#         bs = xyz.size(0)
+#         coor, f = self.grouper(xyz, self.center_num) # b n c
+#         pe =  self.pos_embed(coor)
+#         x = self.input_proj(f)
 
-        x = self.encoder(x + pe, coor) # b n c
-        return pe, x
+#         x = self.encoder(x + pe, coor) # b n c
+#         return pe, x
 
-        # global_feature = self.increase_dim(x) # B 1024 N 
-        # global_feature = torch.max(global_feature, dim=1)[0] # B 1024
+#         # global_feature = self.increase_dim(x) # B 1024 N 
+#         # global_feature = torch.max(global_feature, dim=1)[0] # B 1024
 
-        # coarse = self.coarse_pred(global_feature).reshape(bs, -1, 3)
+#         # coarse = self.coarse_pred(global_feature).reshape(bs, -1, 3)
 
-        # coarse_inp = misc.fps(xyz, self.num_query//2) # B 128 3
-        # coarse = torch.cat([coarse, coarse_inp], dim=1) # B 224+128 3?
+#         # coarse_inp = misc.fps(xyz, self.num_query//2) # B 128 3
+#         # coarse = torch.cat([coarse, coarse_inp], dim=1) # B 224+128 3?
 
-        # mem = self.mem_link(x)
+#         # mem = self.mem_link(x)
         
 
-        # # query selection
-        # query_ranking = self.query_ranking(coarse) # b n 1
-        # idx = torch.argsort(query_ranking, dim=1, descending=True) # b n 1
-        # coarse = torch.gather(coarse, 1, idx[:,:self.num_query].expand(-1, -1, coarse.size(-1)))
+#         # # query selection
+#         # query_ranking = self.query_ranking(coarse) # b n 1
+#         # idx = torch.argsort(query_ranking, dim=1, descending=True) # b n 1
+#         # coarse = torch.gather(coarse, 1, idx[:,:self.num_query].expand(-1, -1, coarse.size(-1)))
 
-        # if self.training:
-        #     # add denoise task
-        #     # first pick some point : 64?
-        #     picked_points = misc.fps(xyz, 64)
-        #     picked_points = misc.jitter_points(picked_points)
-        #     coarse = torch.cat([coarse, picked_points], dim=1) # B 256+64 3?
-        #     denoise_length = 64     
+#         # if self.training:
+#         #     # add denoise task
+#         #     # first pick some point : 64?
+#         #     picked_points = misc.fps(xyz, 64)
+#         #     picked_points = misc.jitter_points(picked_points)
+#         #     coarse = torch.cat([coarse, picked_points], dim=1) # B 256+64 3?
+#         #     denoise_length = 64     
 
-        #     # produce query
-        #     q = self.mlp_query(
-        #     torch.cat([
-        #         global_feature.unsqueeze(1).expand(-1, coarse.size(1), -1),
-        #         coarse], dim = -1)) # b n c
+#         #     # produce query
+#         #     q = self.mlp_query(
+#         #     torch.cat([
+#         #         global_feature.unsqueeze(1).expand(-1, coarse.size(1), -1),
+#         #         coarse], dim = -1)) # b n c
 
-        #     # forward decoder
-        #     q = self.decoder(q=q, v=mem, q_pos=coarse, v_pos=coor, denoise_length=denoise_length)
+#         #     # forward decoder
+#         #     q = self.decoder(q=q, v=mem, q_pos=coarse, v_pos=coor, denoise_length=denoise_length)
 
-        #     return q, coarse, denoise_length
+#         #     return q, coarse, denoise_length
 
-        # else:
-        #     # produce query
-        #     q = self.mlp_query(
-        #     torch.cat([
-        #         global_feature.unsqueeze(1).expand(-1, coarse.size(1), -1),
-        #         coarse], dim = -1)) # b n c
+#         # else:
+#         #     # produce query
+#         #     q = self.mlp_query(
+#         #     torch.cat([
+#         #         global_feature.unsqueeze(1).expand(-1, coarse.size(1), -1),
+#         #         coarse], dim = -1)) # b n c
             
-        #     # forward decoder
-        #     q = self.decoder(q=q, v=mem, q_pos=coarse, v_pos=coor)
+#         #     # forward decoder
+#         #     q = self.decoder(q=q, v=mem, q_pos=coarse, v_pos=coor)
 
-        #     return q, coarse, 0
+#         #     return q, coarse, 0
 
-######################################## PoinTr ########################################  
+# ######################################## PoinTr ########################################  
 
-# self.base_model = PCTransformer(config)
-# q, coarse_point_cloud, denoise_length = self.base_model(xyz) # B M C and B M 3
+# # self.base_model = PCTransformer(config)
+# # q, coarse_point_cloud, denoise_length = self.base_model(xyz) # B M C and B M 3
