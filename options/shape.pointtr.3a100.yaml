@@ -2,7 +2,7 @@ group: shape
 name: shape_recon
 load: 
 
-batch_size: 144 #72 # 24 per card for a40 # 13 per card for a40,
+batch_size: 72 #72 # 24 per card for a40 # 13 per card for a40,
 debug: false
 profile: false
 image_size: [224,224]
@@ -44,7 +44,7 @@ arch:
         skip_in: [2,4,6]
 
 eval:
-    batch_size: 24 #12
+    batch_size: 12 #12
     brute_force: false
     n_vis: 50
     vox_res: 64
