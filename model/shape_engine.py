@@ -2,6 +2,7 @@ import numpy as np
 import os, time, datetime
 import torch
 import torch.utils.tensorboard
+import wandb
 import torch.profiler
 import importlib
 import shutil
@@ -155,6 +156,13 @@ class Runner():
     def setup_visualizer(self, opt, test=False):
         if opt.device == 0: 
             print("setting up visualizers...")
+            wandb.init(
+                project="symm",
+                config=opt,
+                dir=opt.output_path,
+                resume=opt.resume,
+            )
+
             if opt.tb:
                 if test == False:
                     self.tb = torch.utils.tensorboard.SummaryWriter(log_dir=opt.output_path, flush_secs=10)
@@ -185,6 +193,7 @@ class Runner():
         if opt.tb and opt.device == 0:
             self.tb.flush()
             self.tb.close()
+            wandb.finish()
         if opt.device == 0: 
             print("TRAINING DONE")
             print("Best CD: %.4f @ epoch %d" % (self.best_val, self.best_ep))
@@ -288,7 +297,7 @@ class Runner():
             if (self.it) % opt.freq.ckpt_latest == 0 and not opt.debug: 
                 self.save_checkpoint(opt, ep=self.ep, it=self.it, best_val=self.best_val, best_ep=self.best_ep, latest=True)
             if (self.it) % opt.freq.scalar == 0 and not opt.debug: 
-                self.log_scalars(opt, var, loss, step=self.it, split="train")
+                self.log_scalars(opt, var, loss, step=self.it * opt.batch_size, split="train")
             if (self.it) % (opt.freq.save_vis * (self.it//10000*10+1)) == 0 and not opt.debug: 
                 # self.vis_train_iter(opt)
                 pass
@@ -533,12 +542,15 @@ class Runner():
         for key, value in loss.items():
             if key=="all": continue
             self.tb.add_scalar("{0}/loss_{1}".format(split, key), value.mean(), step)
+            wandb.log({"{0}/loss_{1}".format(split, key): value.mean()}, step=step)
         if metric is not None:
             for key, value in metric.items():
                 self.tb.add_scalar("{0}/{1}".format(split, key), value, step)
+                wandb.log({"{0}/{1}".format(split, key): value}, step=step)
         # log the attention average values
         if 'attn_geo_avg' in var:
             self.tb.add_scalar("{0}/attn_geo_avg".format(split), var.attn_geo_avg, step)
+            wandb.log({"{0}/attn_geo_avg".format(split): var.attn_geo_avg}, step=step)
         if 'attn_geo_seen' in var:
             self.tb.add_scalar("{0}/attn_geo_seen".format(split), var.attn_geo_seen, step)
         if 'attn_geo_occl' in var:
