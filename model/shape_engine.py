@@ -161,6 +161,7 @@ class Runner():
                 config=opt,
                 dir=opt.output_path,
                 resume=opt.resume,
+                name=opt.yaml
             )
 
             if opt.tb:
