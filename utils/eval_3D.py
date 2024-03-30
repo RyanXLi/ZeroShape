@@ -173,7 +173,7 @@ def eval_metrics_BF(opt, var, impl_network, vis_only=False):
     points_3D = get_dense_3D_grid(opt, var) # [B, N, N, N, 3]
     batch_size = points_3D.shape[0]
     level_vox, attn_vis = compute_level_grid(opt, impl_network, var.latent_depth, var.latent_semantic, 
-                                             points_3D, var.rgb_input_map, vis_only)
+                                             points_3D, var.rgb_input_map, vis_only, pos=var.enc_pos)
     if attn_vis:
         var.attn_vis = attn_vis
     var.eval_vox = points_3D.view(batch_size, -1, 3)
