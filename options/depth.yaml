@@ -65,7 +65,7 @@ tb:
 freq:
     print: 200
     print_eval: 100
-    scalar: 1000 # iterations
+    scalar: 100 # iterations
     vis: 1000 # iterations
     save_vis: 1000
     ckpt_latest: 1000 # iterations
