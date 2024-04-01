@@ -8,4 +8,5 @@ output
 **ckpt
 examples/pred**
 
-.vscode
+*.log
+**log
