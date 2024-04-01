@@ -157,6 +157,7 @@ class Runner():
     def setup_visualizer(self, opt, test=False):
         if opt.device == 0: 
             print("setting up visualizers...")
+            date_time = datetime.datetime.now()
             wandb.init(
                 project="symm",
                 config=opt,
