@@ -10,10 +10,18 @@ class Loss(nn.Module):
     def __init__(self, opt):
         super().__init__()
         self.opt = deepcopy(opt)
-        self.occ_loss = nn.BCEWithLogitsLoss(reduction='none')
+        # self.occ_loss = nn.BCEWithLogitsLoss(reduction='none')
+        self.occ_loss = self.binary_cross_entropy
         self.midas_loss = MidasLoss(alpha=opt.training.depth_loss.grad_reg, 
                                     inverse_depth=opt.training.depth_loss.depth_inv, 
                                     shrink_mask=opt.training.depth_loss.mask_shrink)
+
+    def binary_cross_entropy(self, my_input, target):
+        """
+        F.binary_cross_entropy is not numerically stable in mixed-precision training.
+        """
+        my_input = torch.sigmoid(my_input)
+        return -(target * torch.log(my_input) + (1 - target) * torch.log(1 - my_input))
 
     def shape_loss(self, pred_occ_raw, gt_sdf):
         assert len(pred_occ_raw.shape) == 2

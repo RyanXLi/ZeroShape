@@ -93,7 +93,7 @@ optim:
     fix_dpt: false
     fix_clip: true
     clip_norm: 
-    amp: false
+    amp: true
     accum: 1
     sched: true
 

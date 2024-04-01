@@ -17,6 +17,7 @@ from copy import deepcopy
 from model.compute_graph import graph_shape
 
 from tqdm import tqdm
+import datetime
 
 # ============================ main engine for training and evaluation ============================
 
@@ -161,7 +162,7 @@ class Runner():
                 config=opt,
                 dir=opt.output_path,
                 resume=opt.resume,
-                name=opt.yaml
+                name=date_time.strftime("%d%m-") + opt.yaml
             )
 
             if opt.tb:

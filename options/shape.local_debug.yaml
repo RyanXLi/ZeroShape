@@ -93,9 +93,9 @@ optim:
     fix_dpt: false
     fix_clip: true
     clip_norm: 
-    amp: false
+    amp: true
     accum: 1
-    sched: false
+    sched: true
 
 tb:
     num_images: [4,8]
