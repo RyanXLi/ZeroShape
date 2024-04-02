@@ -92,7 +92,7 @@ optim:
     weight_decay: 0.05
     fix_dpt: false
     fix_clip: true
-    clip_norm: 1.0
+    clip_norm:
     amp: true
     accum: 1
     sched: true

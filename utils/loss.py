@@ -20,8 +20,12 @@ class Loss(nn.Module):
         """
         F.binary_cross_entropy is not numerically stable in mixed-precision training.
         """
-        my_input = torch.sigmoid(my_input)
-        return -(target * torch.log(my_input) + (1 - target) * torch.log(1 - my_input))
+        with torch.autocast(device_type="cuda", enabled=False):
+            my_input = my_input.float()
+            target = target.float()
+            my_input = torch.sigmoid(my_input)
+            result = -(target * torch.log(my_input) + (1 - target) * torch.log(1 - my_input))
+        return result
 
     def shape_loss(self, pred_occ_raw, gt_sdf):
         assert len(pred_occ_raw.shape) == 2
