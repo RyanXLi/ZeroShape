@@ -11,7 +11,10 @@ class Loss(nn.Module):
         super().__init__()
         self.opt = deepcopy(opt)
         # self.occ_loss = nn.BCEWithLogitsLoss(reduction='none')
-        self.occ_loss = self.binary_cross_entropy
+        if opt.optim.amp:
+            self.occ_loss = self.binary_cross_entropy
+        else:
+            self.occ_loss = nn.BCEWithLogitsLoss(reduction='none')
         self.midas_loss = MidasLoss(alpha=opt.training.depth_loss.grad_reg, 
                                     inverse_depth=opt.training.depth_loss.depth_inv, 
                                     shrink_mask=opt.training.depth_loss.mask_shrink)
