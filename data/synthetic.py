@@ -5,8 +5,8 @@ import torchvision.transforms.functional as torchvision_F
 import PIL
 import utils.camera as camera
 
-import json
-import pandas as pd
+# import json
+# import pandas as pd
 
 from . import base
 
@@ -48,15 +48,15 @@ class Dataset(base.Dataset):
         
         # get data list
         self.list = self.get_list(opt, split)
-        self.symm_gt = self.prepare_symm_gt(opt)
+    #     self.symm_gt = self.prepare_symm_gt(opt)
 
-    def prepare_symm_gt(self, opt):
-        # load the two csv files
-        with open("symm/candidate_planes.json") as json_file:
-            candidate_planes = json.load(json_file)
-        df_obja_lvis = pd.read_csv("symm/output_obja_lvis_pc_axis_v2.csv", header=None)
-        df_shapenet = pd.read_csv("symm/output_shapenet_pc_axis_v2.csv", header=None)
-        
+    # def prepare_symm_gt(self, opt):
+    #     # load the two csv files
+    #     with open("symm/candidate_planes.json") as json_file:
+    #         candidate_planes = json.load(json_file)
+    #     df_obja_lvis = pd.read_csv("symm/output_obja_lvis_pc_axis_v2.csv", header=None)
+    #     df_shapenet = pd.read_csv("symm/output_shapenet_pc_axis_v2.csv", header=None)
+
 
     
     # read the list file, return a list of (category, object_name, sample_id)
