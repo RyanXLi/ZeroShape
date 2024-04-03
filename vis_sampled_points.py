@@ -6,7 +6,7 @@ import pyvista as pv
 
 # fname = f"{category}/{category}_{object_name}"
 # gt_fname = f"{self.path}/{subset}/gt_sdf/{fname}.npy"
-gt_fname = "/home/ryan/work/data/processed_final_versions_synthetic/objaverse_LVIS/gt_sdf/aerosol_can/aerosol_can_1c74e24e7ce14cce982e9f2bd7857a8e.npy"
+gt_fname = "/home/ryan/work/data/processed_final_versions_synthetic/objaverse_LVIS/gt_sdf/aerosol_can/aerosol_can_2e6183a962d9447ba37368993aca785f.npy"
 gt_dict = np.load(gt_fname, allow_pickle=True).item()
 gt_dict['sample_pt']
 gt_sample_points = gt_dict['sample_pt']
