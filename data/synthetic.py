@@ -5,8 +5,9 @@ import torchvision.transforms.functional as torchvision_F
 import PIL
 import utils.camera as camera
 
-# import json
-# import pandas as pd
+import json
+import pandas as pd
+import trimesh
 
 from . import base
 
@@ -48,17 +49,12 @@ class Dataset(base.Dataset):
         
         # get data list
         self.list = self.get_list(opt, split)
-    #     self.symm_gt = self.prepare_symm_gt(opt)
+        # self.symm_gt = self.prepare_symm_gt(opt)
 
-    # def prepare_symm_gt(self, opt):
-    #     # load the two csv files
-    #     with open("symm/candidate_planes.json") as json_file:
-    #         candidate_planes = json.load(json_file)
-    #     df_obja_lvis = pd.read_csv("symm/output_obja_lvis_pc_axis_v2.csv", header=None)
-    #     df_shapenet = pd.read_csv("symm/output_shapenet_pc_axis_v2.csv", header=None)
+        self.max_num_planes = 31
+        with open("data/symm/symm_gt.json") as json_file:
+            self.symm_gt = json.load(json_file)
 
-
-    
     # read the list file, return a list of (category, object_name, sample_id)
     def get_list(self, opt, split):
         # bad_data = open(f"./problem.txt").read().splitlines() #bad_batch
@@ -144,6 +140,25 @@ class Dataset(base.Dataset):
         gt_sample_sdf = torch.from_numpy(gt_dict['sample_sdf']).float() - 0.003
         return gt_sample_points, gt_sample_sdf
     
+    def get_normal(self, subset, category, object_name, radius, center):
+        fname = f"{category}/{category}_{object_name}.npy"
+        normals = self.symm_gt[fname]
+        
+        normals = torch.from_numpy(np.array(normals)).float()
+        num_actual_gt = torch.zeros((1)).int()
+        gt_normal_normalized = torch.zeros((self.max_num_planes, 3)).float()
+        for i in range(len(normals)):
+            direction_i = normals[i]
+            if direction_i[0] > 0:
+                direction_i = -direction_i
+            # de-ball-norm: ball-normalized coords to loaded pc coords
+            direction_i = direction_i * radius
+            direction_i = direction_i + center
+            gt_normal_normalized[i, :] = direction_i / torch.norm(direction_i)
+            num_actual_gt += 1
+
+        return gt_normal_normalized, num_actual_gt
+    
     def __getitem__(self, idx):
         opt = self.opt
         subset, category, object_name, sample_id = self.list[idx]
@@ -180,7 +195,25 @@ class Dataset(base.Dataset):
         # load point cloud
         dpc = self.get_pointcloud(subset, category, object_name)
         sample.update(dpc=dpc)
-        
+
+        # TODO: derive and record center
+        # pc = dpc['points']
+        # trimeshpc = trimesh.PointCloud(pc)
+        # sphere = trimeshpc.bounding_sphere
+        # radius = (sphere.bounds[1] - sphere.bounds[0]) * 0.5
+        # center = sphere.center
+        radius = 1
+        center = [0, 0, 0]
+        center = torch.from_numpy(np.array(center)).float()
+        center = center.unsqueeze(0)
+        radius = torch.tensor(radius).float()
+        sample.update(center_coords=center)
+
+        # load normal
+        gt_normal_normalized, num_actual_gt = self.get_normal(subset, category, object_name, radius=radius, center=center)
+        sample.update(gt_normal_normalized=gt_normal_normalized)
+        sample.update(num_actual_gt=num_actual_gt)
+                
         # load gt sdf
         gt_sample_points, gt_sample_sdf = self.get_gt_sdf(subset, category, object_name)
         # sample the sdf points if needed

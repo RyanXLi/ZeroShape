@@ -12,7 +12,8 @@
             "console": "integratedTerminal",
             "args": "--yaml=options/shape.local_debug.yaml --name=run-shape",
             "env": {
-                "PYTHONPATH": "/home/ryan/anaconda3/envs/zsnew/bin/python"
+                "PYTHONPATH": "/home/ryan/anaconda3/envs/zsnew/bin/python",
+                "TORCH_DISTRIBUTED_DEBUG": "DETAIL"
             },
             // "preLaunchTask": "build debug meson",
         }

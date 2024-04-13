@@ -808,7 +808,7 @@ class CoordEncPointTr(nn.Module):
         x = self.input_proj(f)
 
         x = self.encoder(x + pe, coor) # b n c
-        return self.pos_embed_dec(coor), x
+        return coor, self.pos_embed_dec(coor), x
 
 
 

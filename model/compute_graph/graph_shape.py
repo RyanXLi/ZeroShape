@@ -9,9 +9,15 @@ from model.shape.seen_coord_enc_threedetr import CoordEncThreeDetr
 from model.shape.seen_coord_enc_pointtr import CoordEncPointTr
 from model.shape.rgb_enc import RGBEncAtt, RGBEncRes
 from model.depth.dpt_depth import DPTDepthModel
+from model.shape.symm_decoder import SymmDecoder
 from utils.util import toggle_grad, interpolate_coordmap, get_child_state_dict
 from utils.camera import unproj_depth, valid_norm_fac
 from utils.layers import Bottleneck_Conv
+
+import numpy as np
+import json
+from scipy.optimize import linear_sum_assignment
+
 
 class Graph(nn.Module):
 
@@ -77,6 +83,12 @@ class Graph(nn.Module):
         
         # loss functions
         self.loss_fns = Loss(opt)
+
+        # decoder for symmetry
+        with open("data/symm/candidate_planes.json") as json_file:
+            candidate_planes = json.load(json_file)
+        self.query_normals = torch.from_numpy(np.array(candidate_planes)).float()
+        self.symm_decoder = SymmDecoder(opt, self.query_normals)
             
     def load_pretrained_depth(self, opt):
         if opt.pretrain.depth:
@@ -123,6 +135,80 @@ class Graph(nn.Module):
         intr[:, 0, 2] += opt.W / 2 + shift_cx
         intr[:, 1, 2] += opt.H / 2 + shift_cy
         return intr
+    
+    def prepare_symm_targets(self, opt, var):
+        return {
+            "gt_normal_normalized": var.gt_normal_cam,
+            "center_coords": var.gt_center_cam,
+            "num_actual_gt": var.num_actual_gt,
+            "num_total_actual_gt": var.num_actual_gt.sum(),
+        }
+    
+    def prepare_symm_output(self, opt, var, outputs):
+        targets = var.symm_targets
+        normal_dist = 1 - torch.matmul(outputs["normal_normalized"], targets["gt_normal_normalized"].transpose(1, 2))
+
+        centers = targets["center_coords"]
+        # max_num_planes = outputs["normal_normalized"].shape[1]
+        # centers = centers.unsqueeze(1).repeat(1, max_num_planes, 1)
+
+        # squared distance to center
+        # Ax+By+Cz+D=0, center: (x,y,z), normal: (A,B,C), D from outputs
+        # Input: outputs["normal_normalized"]: (B, Q, 3), centers: (B, 3), outputs["plane_offset"]: (B, Q, 1)
+        # Output: outputs["center_dist"]: (B, Q)
+        center_dist = torch.matmul(outputs["normal_normalized"], centers.unsqueeze(-1)) + outputs["plane_offset"]
+        center_dist = center_dist.squeeze(-1)
+        center_dist = center_dist ** 2
+    
+        return {
+            "cls_prob": outputs["cls_prob"],
+            "cls_logits": outputs["cls_logits"], 
+            "normal": outputs["normal_normalized"],
+            "offset": outputs["plane_offset"],
+            "center_dist": center_dist,
+            "normal_dist": normal_dist
+        }
+    
+    def prepare_symm_assignments(self, opt, var, query_normals):
+        outputs = var.symm_outputs
+        batch_size = outputs["cls_prob"].shape[0]
+        nprop = outputs["cls_prob"].shape[1]
+        device = outputs["cls_prob"].device
+
+        targets = var.symm_targets
+        num_actual_gt = targets["num_actual_gt"]
+        gt_normal_normalized = targets["gt_normal_normalized"]
+
+        query_normals = query_normals.to(device).unsqueeze(0).repeat(batch_size, 1, 1)
+
+        normal_query_gt_dist = 1 - torch.matmul(query_normals, gt_normal_normalized.transpose(1, 2))
+        final_cost = normal_query_gt_dist.detach().cpu().numpy()
+
+        assignments = []
+
+        per_prop_gt_inds = torch.zeros(
+            [batch_size, nprop], dtype=torch.int64, device=device
+        )
+        proposal_matched_mask = torch.zeros(
+            [batch_size, nprop], dtype=torch.float32, device=device
+        )
+        for b in range(batch_size):
+            assign = []
+            if num_actual_gt[b] > 0:
+                assign = linear_sum_assignment(final_cost[b, :, : num_actual_gt[b]])
+                assign = [
+                    torch.from_numpy(x).long().to(device=device)
+                    for x in assign
+                ]
+                per_prop_gt_inds[b, assign[0]] = assign[1]
+                proposal_matched_mask[b, assign[0]] = 1
+            assignments.append(assign)
+
+        return {
+            "assignments": assignments,
+            "per_prop_gt_inds": per_prop_gt_inds,
+            "proposal_matched_mask": proposal_matched_mask,
+        }
 
     def forward(self, opt, var, training=False, get_loss=True):
         # def log_tensor_strides(tensor, message):
@@ -162,7 +248,7 @@ class Graph(nn.Module):
         if opt.arch.depth.encoder == 'resnet':
             var.latent_depth = self.coord_encoder(seen_3D_dsp, mask_dsp)
         elif opt.arch.depth.encoder == 'pointtr':
-            var.enc_pos, var.latent_depth = self.coord_encoder(seen_3D_dsp, mask_dsp>0.5)
+            var.enc_xyz, var.enc_pos, var.latent_depth = self.coord_encoder(seen_3D_dsp, mask_dsp>0.5)
         elif opt.arch.depth.encoder == 'threedetr':
             # log_tensor_strides(seen_3D_dsp, "seen_3D_dsp Before operation XYZ")
             var.enc_pos, var.latent_depth = self.coord_encoder(seen_3D_dsp.permute(0, 2, 3, 1).contiguous(), mask_dsp.squeeze(1)>0.5)
@@ -196,6 +282,26 @@ class Graph(nn.Module):
                 # normalize with seen std and mean, [B, N, 3]
                 var.gt_points_cam = (gt_sample_points_cam - seen_points_mean_gt.unsqueeze(1)) / seen_points_scale_gt.unsqueeze(-1).unsqueeze(-1)
                 
+                # TODO: transform center and normal accordingly
+                # [B, 3, 1]
+                gt_center_transposed = var.center_coords.permute(0, 2, 1).contiguous()
+                # gt_normal_valid = var.gt_normal_normalized[:, :var.num_actual_gt, :] # TODO: check indexing correctness
+                gt_normal_transposed = var.gt_normal_normalized.permute(0, 2, 1).contiguous()
+                # camera coordinates, [B, N, 3]
+                gt_center_cam = (R_gt @ gt_center_transposed + T_gt).permute(0, 2, 1).contiguous()
+                gt_normal_cam_dirty = (R_gt @ gt_normal_transposed + T_gt).permute(0, 2, 1).contiguous()
+                # normalize with seen std and mean, [B, N, 3]
+                var.gt_center_cam = (gt_center_cam - seen_points_mean_gt.unsqueeze(1)) / seen_points_scale_gt.unsqueeze(-1).unsqueeze(-1)
+
+                gt_normal_cam_dirty = (gt_normal_cam_dirty - seen_points_mean_gt.unsqueeze(1)) / seen_points_scale_gt.unsqueeze(-1).unsqueeze(-1)
+                gt_normal_cam_dirty -= var.gt_center_cam
+                gt_normal_cam_dirty = gt_normal_cam_dirty / torch.norm(gt_normal_cam_dirty, dim=-1, keepdim=True)
+                bs = gt_normal_cam_dirty.size(0)
+                for i in range(bs):
+                    gt_normal_cam_dirty[i, var.num_actual_gt[i]:, :] = 0
+                var.gt_normal_cam  = gt_normal_cam_dirty
+                
+
                 # get near-surface points for visualization
                 # [B, 100, 3]
                 close_surf_idx = torch.topk(var.gt_sample_sdf.abs(), k=100, dim=1, largest=False)[1].unsqueeze(-1).repeat(1, 1, 3)
@@ -212,8 +318,12 @@ class Graph(nn.Module):
             # print(f"vram after running of impl_network: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
             # print(f"vram after running of impl_network: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
             # log_tensor_strides(var.latent_depth, "After operation XYZ")
-            
-
+            query_normals = self.query_normals.to(var.latent_depth.device)
+            symm_outputs = self.symm_decoder(var.latent_depth, enc_xyz=var.enc_xyz)
+            symm_outputs = symm_outputs["outputs"] # ommitted the "aux_outputs" 
+            var.symm_targets = self.prepare_symm_targets(opt, var)
+            var.symm_outputs = self.prepare_symm_output(opt, var, symm_outputs)
+            var.symm_assignments = self.prepare_symm_assignments(opt, var, query_normals)
         # calculate the loss if needed
         if get_loss: 
             loss = self.compute_loss(opt, var, training)
@@ -229,4 +339,10 @@ class Graph(nn.Module):
             loss.intr = self.loss_fns.intr_loss(var.seen_points, var.seen_points_gt, var.validity_mask)
         if opt.loss_weight.shape is not None and training:
             loss.shape = self.loss_fns.shape_loss(var.pred_sample_occ, var.gt_sample_sdf)
+        if opt.loss_weight.symm_cls is not None and training:
+            loss.symm_cls = self.loss_fns.symm_cls_loss(var.symm_outputs, var.symm_targets, var.symm_assignments)
+        if opt.loss_weight.symm_normal is not None and training:
+            loss.symm_normal = self.loss_fns.symm_normal_loss(var.symm_outputs, var.symm_targets, var.symm_assignments)
+        if opt.loss_weight.symm_offset is not None and training:
+            loss.symm_offset = self.loss_fns.symm_offset_loss(var.symm_outputs, var.symm_targets, var.symm_assignments)
         return loss

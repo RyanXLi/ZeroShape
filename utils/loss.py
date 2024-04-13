@@ -5,6 +5,9 @@ import torch.nn.functional as torch_F
 from copy import deepcopy
 from model.depth.midas_loss import MidasLoss
 
+import torch.nn.functional as F
+
+
 class Loss(nn.Module):
 
     def __init__(self, opt):
@@ -18,6 +21,8 @@ class Loss(nn.Module):
         self.midas_loss = MidasLoss(alpha=opt.training.depth_loss.grad_reg, 
                                     inverse_depth=opt.training.depth_loss.depth_inv, 
                                     shrink_mask=opt.training.depth_loss.mask_shrink)
+        self.semcls_percls_weights = torch.ones(2)
+        self.semcls_percls_weights[0] = 0.1
 
     def binary_cross_entropy(self, my_input, target):
         """
@@ -55,3 +60,57 @@ class Loss(nn.Module):
         distance = torch.sum((seen_pred - seen_gt)**2, dim=-1)
         loss = (distance * mask).sum() / (mask.sum() + 1.e-8)
         return loss
+    
+    def symm_cls_loss(self, outputs, targets, assignments):
+
+        # pred_logits: B x Q x 2
+        # batch_size = pred_logits.shape[0]
+        # nprop = pred_logits.shape[1]
+        # device = pred_logits.device
+        pred_logits = outputs["cls_logits"]
+        # gt_box_label = torch.zeros((batch_size, nprop), dtype=torch.int64, device=device)
+        gt_box_label = assignments["proposal_matched_mask"].type(torch.int64)
+        loss = F.cross_entropy(
+            pred_logits.reshape(-1, 2),
+            gt_box_label.reshape(-1),
+            self.semcls_percls_weights.to(pred_logits.device),
+            reduction="mean",
+        )
+        # loss = sigmoid_focal_loss(
+        #     pred_logits,
+        #     gt_box_label,
+        #     # self.semcls_percls_weights,
+        #     reduction="mean",
+        # )
+
+
+        return loss
+    
+    def symm_normal_loss(self, outputs, targets, assignments):
+        normal_dist = outputs["normal_dist"]
+        
+
+        # select appropriate distances by using proposal to gt matching
+        # this leaves only the valid ones, and filters out all gt that is not matching
+        normal_loss = torch.gather(
+            normal_dist, 2, assignments["per_prop_gt_inds"].unsqueeze(-1)
+        ).squeeze(-1)
+        # zero-out non-matched proposals
+        normal_loss = normal_loss * assignments["proposal_matched_mask"]
+        normal_loss = normal_loss.sum()
+        if targets["num_total_actual_gt"] > 0:
+            normal_loss /= targets["num_total_actual_gt"]
+
+        return normal_loss   
+
+    def symm_offset_loss(self, outputs, targets, assignments):
+        
+        center_dist = outputs["center_dist"]
+        
+        # zero-out non-matched proposals
+        offset_loss = center_dist * assignments["proposal_matched_mask"]
+        offset_loss = offset_loss.sum()
+        if targets["num_total_actual_gt"] > 0:
+            offset_loss /= targets["num_total_actual_gt"]
+
+        return offset_loss

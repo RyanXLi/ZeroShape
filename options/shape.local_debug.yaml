@@ -85,6 +85,10 @@ loss_weight:
     shape: 1
     depth: 
     intr: 
+    symm_cls: 0.1
+    symm_normal: 0.1
+    symm_offset: 0.1
+
     
 optim:
     lr: 4.114e-4 #3.e-5
@@ -145,6 +149,13 @@ pointtr:
         mlp_ratio: 2.
         block_style_list: ['attn-graph', 'attn', 'attn', 'attn', 'attn', 'attn']
         combine_style: 'concat'
+
+symm_decoder:
+    dim: 256
+    num_layers: 4
+    num_head: 4
+    ffn_dim: 256
+    dropout: 0.1
 
 # ### Encoder
 # parser.add_argument(
