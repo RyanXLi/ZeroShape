@@ -149,6 +149,7 @@ class Graph(nn.Module):
         normal_dist = 1 - torch.matmul(outputs["normal_normalized"], targets["gt_normal_normalized"].transpose(1, 2))
 
         centers = targets["center_coords"]
+        centers = centers.squeeze(1)
         # max_num_planes = outputs["normal_normalized"].shape[1]
         # centers = centers.unsqueeze(1).repeat(1, max_num_planes, 1)
 

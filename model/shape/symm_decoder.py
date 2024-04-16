@@ -94,7 +94,8 @@ class SymmDecoder(nn.Module):
         # # continuous rotation representation ortho6d
         # regression_head = mlp_func(output_dim=6)
         #  rotation representation quaternion
-        regression_head = mlp_func(output_dim=4)
+        # regression_head = mlp_func(output_dim=4)
+        regression_head = mlp_func(output_dim=3)
 
         # offset to actual plane
         plane_offset_head = mlp_func(output_dim=1)
@@ -121,26 +122,39 @@ class SymmDecoder(nn.Module):
         # print(norm)
         return quat
 
+    # rotation version:
+    # def compute_predicted_normal(self, normal_offset, query_xyz):
+
+    #     # normal_unnormalized = query_xyz + normal_offset
+    #     # normal_normalized = normal_unnormalized / normal_unnormalized.norm(dim=-1, keepdim=True)
+    #     # normal_offset: B x Q x 6, query_xyz: B x Q x 3
+    #     batch_size, query_size, _ = normal_offset.shape
+    #     # normal_offset_bq_6 = normal_offset.reshape(-1, 6)
+    #     # rot: B*Q x 3 x 3
+    #     # rot = self.compute_rotation_matrix_from_ortho6d(normal_offset_bq_6)
+
+    #     normal_offset_bq_4 = normal_offset.reshape(-1, 4)
+    #     quat = self.assemble_quaternion(normal_offset_bq_4)
+    #     # rot: B*Q x 3 x 3
+    #     rot = self.compute_rotation_matrix_from_quaternion(quat)
+
+    #     query_xyz_bq_3= query_xyz.view(-1, 3)
+    #     normal_normalized = torch.matmul(rot, query_xyz_bq_3.unsqueeze(-1)).squeeze(-1)
+
+    #     # # Use below to disable regression
+    #     # normal_normalized = query_xyz_bq_3
+
+    #     normal_normalized = normal_normalized.view(batch_size, query_size, 3)
+
+    #     return normal_normalized, normal_normalized
+
+
     def compute_predicted_normal(self, normal_offset, query_xyz):
+        normal_offset = normal_offset / torch.norm(normal_offset, dim=-1, keepdim=True)
+        normal_offset *= 0.6
+        normal_unnormalized = query_xyz + normal_offset
+        normal_normalized = normal_unnormalized / torch.norm(normal_unnormalized, dim=-1, keepdim=True)
 
-        # normal_unnormalized = query_xyz + normal_offset
-        # normal_normalized = normal_unnormalized / normal_unnormalized.norm(dim=-1, keepdim=True)
-        # normal_offset: B x Q x 6, query_xyz: B x Q x 3
-        batch_size, query_size, _ = normal_offset.shape
-        # normal_offset_bq_6 = normal_offset.reshape(-1, 6)
-        # rot: B*Q x 3 x 3
-        # rot = self.compute_rotation_matrix_from_ortho6d(normal_offset_bq_6)
-
-        normal_offset_bq_4 = normal_offset.reshape(-1, 4)
-        quat = self.assemble_quaternion(normal_offset_bq_4)
-        # rot: B*Q x 3 x 3
-        rot = self.compute_rotation_matrix_from_quaternion(quat)
-
-        query_xyz_bq_3= query_xyz.view(-1, 3)
-        normal_normalized = torch.matmul(rot, query_xyz_bq_3.unsqueeze(-1)).squeeze(-1)
-        # # Use below to disable regression
-        # normal_normalized = query_xyz_bq_3
-        # normal_normalized = normal_normalized.view(batch_size, query_size, 3)
 
         return normal_normalized, normal_normalized
 
@@ -348,7 +362,7 @@ class SymmDecoder(nn.Module):
 
         features = self.latent_proj(features) # features: B, 128 (ntoken), 384 (dim)
         features = features.permute(1, 0, 2) # features: 128, B, 384
-        enc_xyz = enc_xyz.permute(1, 0, 2) # enc_xyz: 128, B, 3
+        # enc_xyz = enc_xyz.permute(1, 0, 2) # enc_xyz: 128, B, 3
         # enc_features = self.encoder_to_decoder_projection(
         #     enc_features.permute(1, 2, 0)
         # ).permute(2, 0, 1)
@@ -363,10 +377,14 @@ class SymmDecoder(nn.Module):
         query_xyz, query_embed = self.get_query_embeddings(device=features.device, bs=features.shape[1], point_cloud_dims=point_cloud_dims)
         # query_embed: batch x channel x npoint
 
+        # point_cloud_dims = [
+        #     inputs["point_cloud_dims_min"],
+        #     inputs["point_cloud_dims_max"],
+        # ]
         enc_pos = self.pos_embedding(enc_xyz, input_range=point_cloud_dims)
 
-        # decoder expects: npoints x batch x channel 128,256,1 -> 128, 1, 256
-        enc_pos = enc_pos.permute(0, 2, 1)
+        # decoder expects: npoints x batch x channel 
+        enc_pos = enc_pos.permute(2, 0, 1)
         query_embed = query_embed.permute(2, 0, 1)
         tgt = torch.zeros_like(query_embed)
         box_features = self.decoder(

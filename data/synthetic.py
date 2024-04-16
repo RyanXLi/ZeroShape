@@ -55,9 +55,14 @@ class Dataset(base.Dataset):
         with open("data/symm/symm_gt.json") as json_file:
             self.symm_gt = json.load(json_file)
 
+        self.ryan_debug = False
+
     # read the list file, return a list of (category, object_name, sample_id)
     def get_list(self, opt, split):
-        # bad_data = open(f"./problem.txt").read().splitlines() #bad_batch
+        if self.ryan_debug:
+            bad_data = open(f"./problem.txt").read().splitlines() #bad_batch
+            bad_data = bad_data[5:6]
+
 
         data_list = []
         for subset in self.subsets:
@@ -72,13 +77,14 @@ class Dataset(base.Dataset):
                     name = '.'.join(img_fname.split('.')[:-1])
                     object_name = name.split('_')[-2]
                     sample_id = name.split('_')[-1]
-
-                    # # if split == "train":
-                    # fname = f"{cat}/{cat}_{object_name}_{sample_id}"
-                    # if fname not in bad_data:
-                    #     continue
-
-                    data_list.append((subset, cat, object_name, sample_id))
+                    
+                    if self.ryan_debug:
+                        # if split == "train":
+                        fname = f"{cat}/{cat}_{object_name}_{sample_id}"
+                        if fname not in bad_data:
+                            continue
+                        for i in range(10000):
+                            data_list.append((subset, cat, object_name, sample_id))
         return data_list
 
     def id_filename_mapping(self, opt, outpath):

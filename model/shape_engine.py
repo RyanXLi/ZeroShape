@@ -294,6 +294,8 @@ class Runner():
         lr = self.sched.get_last_lr()[0] if opt.optim.sched else opt.optim.lr
         self.train_metric_logger.update(lr=lr)
         self.train_metric_logger.update(loss=loss.all)
+        self.train_metric_logger.update(**{key: loss[key].mean() for key in loss if key != "all"})
+
         if opt.device == 0: 
             self.graph.eval()
             # if (self.it) % opt.freq.vis == 0: self.visualize(opt, var, step=self.it, split="train")
