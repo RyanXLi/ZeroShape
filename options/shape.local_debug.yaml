@@ -2,12 +2,12 @@ group: shape
 name: shape_recon
 load: 
 
-batch_size: 4
+batch_size: 1
 debug: false
 profile: false
 image_size: [224,224]
 gpu: 0
-max_epoch: 2000
+max_epoch: 15
 output_root: output
 resume: false
 seed: 0
@@ -82,17 +82,17 @@ training:
         mask_shrink: false
 
 loss_weight:
-    shape: 0.
+    shape: 1
     depth: 
     intr: 
-    symm_cls: 1
-    symm_normal: 1
-    symm_offset: 1
+    symm_cls: 0.1
+    symm_normal: 0.1
+    symm_offset: 0.1
 
     
 optim:
-    lr: 3.e-4
-    lr_ft: 1.e-4
+    lr: 4.114e-4 #3.e-5
+    lr_ft: 1.37e-4 #1.e-5
     weight_decay: 0.05
     fix_dpt: false
     fix_clip: true
@@ -111,7 +111,7 @@ freq:
     vis: 1000 # iterations
     save_vis: 1000
     ckpt_latest: 1000 # iterations
-    eval: 20000
+    eval: 1
 
 # # change resnet to threedetr
 # # add the following arguments
