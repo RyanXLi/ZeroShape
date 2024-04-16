@@ -210,8 +210,35 @@ class Graph(nn.Module):
             "per_prop_gt_inds": per_prop_gt_inds,
             "proposal_matched_mask": proposal_matched_mask,
         }
+    
+    def visualize_gt_planes(self, var):
+        import pyvista as pv
+        import trimesh
 
-    def forward(self, opt, var, training=False, get_loss=True):
+        gt_points = var.gt_points_cam.squeeze(0).cpu().numpy()
+        gt_center = var.symm_targets['center_coords'].squeeze(0).cpu().numpy().tolist()
+        gt_normal = var.symm_targets['gt_normal_normalized'].squeeze(0).cpu().numpy().tolist()
+        gt_num = var.symm_targets["num_actual_gt"].squeeze(0).cpu().numpy().tolist()[0]
+
+        pred_center = var.symm_outputs["center_dist"].squeeze(0).cpu().numpy()
+
+
+        plotter = pv.Plotter()
+        plotter.show_axes()
+        plotter.view_xy()
+        # meshsphere = trimesh.creation.icosphere(radius=1)
+        pvpc = pv.PolyData(gt_points)
+        plotter.add_mesh(pvpc, color='blue')
+        # plotter.add_mesh(pv.wrap(meshsphere), color='pink')
+        for d in gt_normal[:gt_num]:
+            plotter.add_mesh(pv.Plane(center=gt_center, direction=d, i_size=10, j_size=10), 
+                            color='green')
+        # for d in [[0., 0., 1.], [0., 1., 0.], [1., 0., 0.]]:
+        #     plotter.add_mesh(pv.Plane(center=[0.,0.,0.], direction=d, i_size=10, j_size=10), 
+        #                     color='green')
+        plotter.show()
+
+    def forward(self, opt, var, training=False, get_loss=True, visualize=False):
         # def log_tensor_strides(tensor, message):
         #     print(f"{message}: sizes = {tensor.size()}, strides = {tensor.stride()}")
 
@@ -325,6 +352,8 @@ class Graph(nn.Module):
             var.symm_targets = self.prepare_symm_targets(opt, var)
             var.symm_outputs = self.prepare_symm_output(opt, var, symm_outputs)
             var.symm_assignments = self.prepare_symm_assignments(opt, var, query_normals)
+            if visualize:
+                self.visualize_gt_planes(var)
         # calculate the loss if needed
         if get_loss: 
             loss = self.compute_loss(opt, var, training)

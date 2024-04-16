@@ -151,7 +151,7 @@ class SymmDecoder(nn.Module):
 
     def compute_predicted_normal(self, normal_offset, query_xyz):
         normal_offset = normal_offset / torch.norm(normal_offset, dim=-1, keepdim=True)
-        normal_offset *= 0.6
+        normal_offset *= 0.95
         normal_unnormalized = query_xyz + normal_offset
         normal_normalized = normal_unnormalized / torch.norm(normal_unnormalized, dim=-1, keepdim=True)
 

@@ -11,6 +11,8 @@ import trimesh
 
 from . import base
 
+DATASET_DEBUG = False
+
 class Dataset(base.Dataset):
 
     def __init__(self, opt, split="train", load_3D=True):
@@ -55,11 +57,9 @@ class Dataset(base.Dataset):
         with open("data/symm/symm_gt.json") as json_file:
             self.symm_gt = json.load(json_file)
 
-        self.ryan_debug = False
-
     # read the list file, return a list of (category, object_name, sample_id)
     def get_list(self, opt, split):
-        if self.ryan_debug:
+        if DATASET_DEBUG:
             bad_data = open(f"./problem.txt").read().splitlines() #bad_batch
             bad_data = bad_data[5:6]
 
@@ -78,13 +78,15 @@ class Dataset(base.Dataset):
                     object_name = name.split('_')[-2]
                     sample_id = name.split('_')[-1]
                     
-                    if self.ryan_debug:
+                    if DATASET_DEBUG:
                         # if split == "train":
                         fname = f"{cat}/{cat}_{object_name}_{sample_id}"
                         if fname not in bad_data:
                             continue
                         for i in range(10000):
                             data_list.append((subset, cat, object_name, sample_id))
+                    else:
+                        data_list.append((subset, cat, object_name, sample_id))
         return data_list
 
     def id_filename_mapping(self, opt, outpath):

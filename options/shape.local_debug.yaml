@@ -157,6 +157,8 @@ symm_decoder:
     ffn_dim: 256
     dropout: 0.1
 
+# ryan_debug: true
+
 # ### Encoder
 # parser.add_argument(
 #     "--enc_type", default="vanilla", choices=["masked", "maskedv2", "vanilla"]

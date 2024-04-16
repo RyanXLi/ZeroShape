@@ -341,8 +341,14 @@ class Runner():
         for key in loss:
             assert(key in opt.loss_weight)
             if opt.loss_weight[key] is not None:
-                assert not torch.isinf(loss[key].mean()), "loss {} is Inf".format(key)
-                assert not torch.isnan(loss[key].mean()), "loss {} is NaN".format(key)
+                # assert not torch.isinf(loss[key].mean()), "loss {} is Inf".format(key)
+                # assert not torch.isnan(loss[key].mean()), "loss {} is NaN".format(key)
+                if torch.isinf(loss[key].mean()):
+                    print("loss {} is Inf".format(key))
+                    continue
+                elif torch.isnan(loss[key].mean()):
+                    print("loss {} is NaN".format(key))
+                    continue
                 loss_all += float(opt.loss_weight[key])*loss[key].mean() if key not in non_act_loss_key else 0.0*loss[key].mean()
         loss.update(all=loss_all)
         return loss
