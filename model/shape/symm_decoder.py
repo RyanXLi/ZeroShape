@@ -6,6 +6,7 @@ from model.threedetr.transformer import (MaskedTransformerEncoder, TransformerDe
                                 TransformerEncoderLayer)
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from functools import partial
 
 class SymmDecoder(nn.Module):
@@ -90,8 +91,10 @@ class SymmDecoder(nn.Module):
         # 2 classes (yes or no)
         cls_head = mlp_func(output_dim=2)
 
-        # continuous rotation representation ortho6d
-        regression_head = mlp_func(output_dim=6)
+        # # continuous rotation representation ortho6d
+        # regression_head = mlp_func(output_dim=6)
+        #  rotation representation quaternion
+        regression_head = mlp_func(output_dim=4)
 
         # offset to actual plane
         plane_offset_head = mlp_func(output_dim=1)
@@ -103,20 +106,41 @@ class SymmDecoder(nn.Module):
         ]
         self.mlp_heads = nn.ModuleDict(mlp_heads)
 
+    def assemble_quaternion(self, normal_offset_bq_4):
+        batch = normal_offset_bq_4.shape[0]
+        
+        angle = normal_offset_bq_4[...,0].contiguous().view(batch, 1)
+        axis = normal_offset_bq_4[...,1:].contiguous().view(batch, 3)
+
+        angle = torch.deg2rad(F.sigmoid(angle) * 30) # limit rotation to 0-30 degrees
+        axis = axis / torch.norm(axis, dim=1, keepdim=True)
+        w = torch.cos(angle / 2)
+        xyz = axis * torch.sin(angle / 2)
+        quat = torch.cat((w, xyz), 1)
+        norm = torch.norm(quat, dim=1, keepdim=True)
+        # print(norm)
+        return quat
+
     def compute_predicted_normal(self, normal_offset, query_xyz):
 
         # normal_unnormalized = query_xyz + normal_offset
         # normal_normalized = normal_unnormalized / normal_unnormalized.norm(dim=-1, keepdim=True)
         # normal_offset: B x Q x 6, query_xyz: B x Q x 3
         batch_size, query_size, _ = normal_offset.shape
-        normal_offset_bq_6 = normal_offset.reshape(-1, 6)
+        # normal_offset_bq_6 = normal_offset.reshape(-1, 6)
         # rot: B*Q x 3 x 3
-        rot = self.compute_rotation_matrix_from_ortho6d(normal_offset_bq_6)
+        # rot = self.compute_rotation_matrix_from_ortho6d(normal_offset_bq_6)
+
+        normal_offset_bq_4 = normal_offset.reshape(-1, 4)
+        quat = self.assemble_quaternion(normal_offset_bq_4)
+        # rot: B*Q x 3 x 3
+        rot = self.compute_rotation_matrix_from_quaternion(quat)
+
         query_xyz_bq_3= query_xyz.view(-1, 3)
-        # normal_normalized = torch.matmul(rot, query_xyz_bq_3.unsqueeze(-1)).squeeze(-1)
-        # Use below to disable regression
-        normal_normalized = query_xyz_bq_3
-        normal_normalized = normal_normalized.view(batch_size, query_size, 3)
+        normal_normalized = torch.matmul(rot, query_xyz_bq_3.unsqueeze(-1)).squeeze(-1)
+        # # Use below to disable regression
+        # normal_normalized = query_xyz_bq_3
+        # normal_normalized = normal_normalized.view(batch_size, query_size, 3)
 
         return normal_normalized, normal_normalized
 
@@ -193,19 +217,62 @@ class SymmDecoder(nn.Module):
             
         return out
 
-    def compute_rotation_matrix_from_ortho6d(self, ortho6d):
-        x_raw = ortho6d[:,0:3]#batch*3
-        y_raw = ortho6d[:,3:6]#batch*3
+    # def compute_rotation_matrix_from_ortho6d(self, ortho6d):
+    #     x_raw = ortho6d[:,0:3]#batch*3
+    #     y_raw = ortho6d[:,3:6]#batch*3
             
-        x = self.normalize_vector(x_raw) #batch*3
-        z = self.cross_product(x,y_raw) #batch*3
-        z = self.normalize_vector(z)#batch*3
-        y = self.cross_product(z,x)#batch*3
+    #     x = self.normalize_vector(x_raw) #batch*3
+    #     z = self.cross_product(x,y_raw) #batch*3
+    #     z = self.normalize_vector(z)#batch*3
+    #     y = self.cross_product(z,x)#batch*3
             
-        x = x.view(-1,3,1)
-        y = y.view(-1,3,1)
-        z = z.view(-1,3,1)
-        matrix = torch.cat((x,y,z), 2) #batch*3*3
+    #     x = x.view(-1,3,1)
+    #     y = y.view(-1,3,1)
+    #     z = z.view(-1,3,1)
+    #     matrix = torch.cat((x,y,z), 2) #batch*3*3
+    #     return matrix
+
+    # batch*n
+    def normalize_vector(self, v, return_mag=False):
+        batch=v.shape[0]
+        v_mag = torch.sqrt(v.pow(2).sum(1))# batch
+        v_mag = torch.max(v_mag, torch.autograd.Variable(torch.FloatTensor([1e-8]).cuda()))
+        v_mag = v_mag.view(batch,1).expand(batch,v.shape[1])
+        v = v/v_mag
+        if(return_mag==True):
+            return v, v_mag[:,0]
+        else:
+            return v
+
+    #quaternion batch*4
+    def compute_rotation_matrix_from_quaternion(self, quaternion):
+        batch=quaternion.shape[0]
+        
+        
+        quat = self.normalize_vector(quaternion).contiguous()
+        
+        qw = quat[...,0].contiguous().view(batch, 1)
+        qx = quat[...,1].contiguous().view(batch, 1)
+        qy = quat[...,2].contiguous().view(batch, 1)
+        qz = quat[...,3].contiguous().view(batch, 1)
+
+        # Unit quaternion rotation matrices computatation  
+        xx = qx*qx
+        yy = qy*qy
+        zz = qz*qz
+        xy = qx*qy
+        xz = qx*qz
+        yz = qy*qz
+        xw = qx*qw
+        yw = qy*qw
+        zw = qz*qw
+        
+        row0 = torch.cat((1-2*yy-2*zz, 2*xy - 2*zw, 2*xz + 2*yw), 1) #batch*3
+        row1 = torch.cat((2*xy+ 2*zw,  1-2*xx-2*zz, 2*yz-2*xw  ), 1) #batch*3
+        row2 = torch.cat((2*xz-2*yw,   2*yz+2*xw,   1-2*xx-2*yy), 1) #batch*3
+        
+        matrix = torch.cat((row0.view(batch, 1, 3), row1.view(batch,1,3), row2.view(batch,1,3)),1) #batch*3*3
+        
         return matrix
 
     def get_plane_predictions(self, query_xyz, point_cloud_dims, box_features):

@@ -140,11 +140,17 @@ class Dataset(base.Dataset):
         gt_sample_sdf = torch.from_numpy(gt_dict['sample_sdf']).float() - 0.003
         return gt_sample_points, gt_sample_sdf
     
-    def get_normal(self, subset, category, object_name, radius, center):
+    def get_center_normal(self, subset, category, object_name):
         fname = f"{category}/{category}_{object_name}.npy"
-        normals = self.symm_gt[fname]
-        
+
+        gt_value = self.symm_gt[fname]
+        normals = gt_value["normal"]
+        radius = gt_value["radius"]
+        center = gt_value["center"]
+
         normals = torch.from_numpy(np.array(normals)).float()
+        radius = torch.from_numpy(np.array(radius)).float()
+        center = torch.from_numpy(np.array(center)).float()
         num_actual_gt = torch.zeros((1)).int()
         gt_normal_normalized = torch.zeros((self.max_num_planes, 3)).float()
         for i in range(len(normals)):
@@ -157,7 +163,7 @@ class Dataset(base.Dataset):
             gt_normal_normalized[i, :] = direction_i / torch.norm(direction_i)
             num_actual_gt += 1
 
-        return gt_normal_normalized, num_actual_gt
+        return center, gt_normal_normalized, num_actual_gt
     
     def __getitem__(self, idx):
         opt = self.opt
@@ -202,17 +208,19 @@ class Dataset(base.Dataset):
         # sphere = trimeshpc.bounding_sphere
         # radius = (sphere.bounds[1] - sphere.bounds[0]) * 0.5
         # center = sphere.center
-        radius = 1
-        center = [0, 0, 0]
-        center = torch.from_numpy(np.array(center)).float()
-        center = center.unsqueeze(0)
-        radius = torch.tensor(radius).float()
-        sample.update(center_coords=center)
+        # radius = 1
+        # center = [0, 0, 0]
+        # center = torch.from_numpy(np.array(center)).float()
+        # center = center.unsqueeze(0)
+        # radius = torch.tensor(radius).float()
+        
 
         # load normal
-        gt_normal_normalized, num_actual_gt = self.get_normal(subset, category, object_name, radius=radius, center=center)
+        center, gt_normal_normalized, num_actual_gt = self.get_center_normal(subset, category, object_name)
+        center = center.unsqueeze(0)
         sample.update(gt_normal_normalized=gt_normal_normalized)
         sample.update(num_actual_gt=num_actual_gt)
+        sample.update(center_coords=center)
                 
         # load gt sdf
         gt_sample_points, gt_sample_sdf = self.get_gt_sdf(subset, category, object_name)
