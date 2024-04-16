@@ -79,12 +79,15 @@ class Dataset(base.Dataset):
                     sample_id = name.split('_')[-1]
                     
                     if DATASET_DEBUG:
-                        # if split == "train":
-                        fname = f"{cat}/{cat}_{object_name}_{sample_id}"
-                        if fname not in bad_data:
-                            continue
-                        for i in range(10000):
-                            data_list.append((subset, cat, object_name, sample_id))
+                        if split == "train":
+                            fname = f"{cat}/{cat}_{object_name}_{sample_id}"
+                            if fname not in bad_data:
+                                continue
+                            for i in range(100):
+                                data_list.append((subset, cat, object_name, sample_id))
+                        else:
+                            if i <= 100:
+                                data_list.append((subset, cat, object_name, sample_id))
                     else:
                         data_list.append((subset, cat, object_name, sample_id))
         return data_list

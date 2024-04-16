@@ -188,6 +188,7 @@ class Runner():
             self.best_val = np.inf
             self.best_ep = 1
         # training
+        # evaluate first before training
         # if self.iter_start == 0 and not opt.debug: self.evaluate(opt, ep=0, training=True)
         for self.ep in range(self.epoch_start, opt.max_epoch):
             self.train_epoch(opt)
