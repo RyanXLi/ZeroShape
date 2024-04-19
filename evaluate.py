@@ -16,7 +16,7 @@ def main_worker(rank, world_size, port, opt):
     evaluator.load_dataset(opt)
     evaluator.test_data.id_filename_mapping(opt, os.path.join(opt.output_path, 'data_list.txt'))
     evaluator.build_networks(opt)
-    evaluator.restore_checkpoint(opt, best=False, evaluate=True) # change best or latest here
+    evaluator.restore_checkpoint(opt, best=True, evaluate=True) # change best or latest here
     evaluator.setup_visualizer(opt, test=True)
 
     evaluator.evaluate(opt, ep=0)
