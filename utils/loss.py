@@ -24,7 +24,7 @@ class Loss(nn.Module):
                                     inverse_depth=opt.training.depth_loss.depth_inv, 
                                     shrink_mask=opt.training.depth_loss.mask_shrink)
         self.semcls_percls_weights = torch.ones(2)
-        self.semcls_percls_weights[0] = 0.1
+        # self.semcls_percls_weights[0] = 0.1
 
     def binary_cross_entropy(self, my_input, target):
         """
