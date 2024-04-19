@@ -6,6 +6,8 @@ from copy import deepcopy
 from model.depth.midas_loss import MidasLoss
 
 import torch.nn.functional as F
+# from torchvision.ops import sigmoid_focal_loss
+
 
 
 class Loss(nn.Module):
