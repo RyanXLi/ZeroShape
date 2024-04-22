@@ -24,7 +24,7 @@ class ImplFuncAttention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
         self.last_layer = last_layer
 
-        self.f1 = MultilabelF1Score(num_labels=31, average='micro', multidim_average='samplewise')
+        
 
     def forward(self, x, N_points):
         
@@ -232,6 +232,7 @@ class Implicit(nn.Module):
             self.pred_head = nn.Linear(n_channels, 1, bias=True)
 
         self.initialize_weights()
+        self.f1 = MultilabelF1Score(num_labels=31, average='micro', multidim_average='samplewise')
 
     def initialize_weights(self):
         
