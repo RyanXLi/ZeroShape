@@ -414,19 +414,19 @@ class Runner():
                 if not training: 
                     self.dump_results(opt, var, ep, write_new=(it == 0))
 
-                # save the predicted mesh for vis data if in train mode
-                if it == 0 and training and opt.device == 0: 
-                    print("visualizing and saving results...")
-                    for i in tqdm(range(len(self.viz_data))):
-                        var_viz = edict(deepcopy(self.viz_data[i]))
-                        var_viz = self.evaluate_batch(opt, var_viz, ep, it, single_gpu=True)
-                        eval_3D.eval_metrics(opt, var_viz, self.graph.module.impl_network, vis_only=True)
-                        # self.visualize(opt, var_viz, step=ep, split="eval")
-                        self.dump_results(opt, var_viz, ep, train=True)
-                    # write html that organizes the results
-                    util_vis.create_gif_html(os.path.join(opt.output_path, "vis_{}".format(ep)), 
-                                             os.path.join(opt.output_path, "results_ep{}.html".format(ep)), 
-                                             skip_every=1)
+                # # save the predicted mesh for vis data if in train mode
+                # if it == 0 and training and opt.device == 0: 
+                #     print("visualizing and saving results...")
+                #     for i in tqdm(range(len(self.viz_data))):
+                #         var_viz = edict(deepcopy(self.viz_data[i]))
+                #         var_viz = self.evaluate_batch(opt, var_viz, ep, it, single_gpu=True)
+                #         eval_3D.eval_metrics(opt, var_viz, self.graph.module.impl_network, vis_only=True)
+                #         # self.visualize(opt, var_viz, step=ep, split="eval")
+                #         self.dump_results(opt, var_viz, ep, train=True)
+                #     # write html that organizes the results
+                #     util_vis.create_gif_html(os.path.join(opt.output_path, "vis_{}".format(ep)), 
+                #                              os.path.join(opt.output_path, "results_ep{}.html".format(ep)), 
+                #                              skip_every=1)
             
             # collect the eval results into tensors
             cd_accs = torch.cat(cd_accs, dim=0)

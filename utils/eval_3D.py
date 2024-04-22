@@ -130,6 +130,8 @@ def eval_metrics_default(opt, var, impl_network, vis_only=False):
         var.dpc_pred = ICP(opt, var.dpc_pred, var.dpc.points)
     dist_acc, dist_comp, _, _ = chamfer_distance(opt, X1=var.dpc_pred, X2=var.dpc.points)
     var.f_score = compute_fscore(dist_acc, dist_comp, opt.eval.f_thresholds)   # [B, n_threshold]
+
+    # var.symm_f1, var.symm_center_dist, var.symm_p, var.symm_r, var.symm_geo_dist = compute_symm_metrics(opt, var)
     # dist_acc: [B, n_points_pred]
     # dist_comp: [B, n_points_gt]
     assert dist_acc.shape[1] == opt.eval.num_points

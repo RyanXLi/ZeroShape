@@ -19,7 +19,7 @@ def main_worker(rank, world_size, port, opt):
     evaluator.restore_checkpoint(opt, best=True, evaluate=True) # change best or latest here
     evaluator.setup_visualizer(opt, test=True)
 
-    evaluator.evaluate(opt, ep=0)
+    evaluator.evaluate(opt, ep=0, training=True) # TODO: remove training=true
 
 def main():
     print("[{}] (evaluating)".format(sys.argv[0]))
