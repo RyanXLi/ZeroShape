@@ -6,6 +6,8 @@ from functools import partial
 from utils.layers import get_embedder
 from utils.layers import LayerScale
 from timm.models.vision_transformer import Mlp, DropPath
+from torchmetrics.classification import MultilabelF1Score
+
 # from utils.pos_embed import get_2d_sincos_pos_embed
     
 class ImplFuncAttention(nn.Module):
@@ -21,6 +23,8 @@ class ImplFuncAttention(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
         self.last_layer = last_layer
+
+        self.f1 = MultilabelF1Score(num_labels=31, average='micro', multidim_average='samplewise')
 
     def forward(self, x, N_points):
         

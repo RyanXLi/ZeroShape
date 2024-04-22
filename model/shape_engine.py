@@ -356,6 +356,23 @@ class Runner():
 
 # =================================================== set up evaluation =========================================================
 
+    def aggregate_symm_eval_metric_dicts(self, symm_eval_metric_dicts):
+        result = {}
+        for key, value in symm_eval_metric_dicts[0].items():
+            result[key] = value.copy()
+        for dict in symm_eval_metric_dicts[1:]:
+            for key, value in dict.items():
+                result[key] += value
+        return result
+    
+    def gather_symm_eval_metrics(self, symm_eval, opt):
+        symm_eval_all = {}
+        for key, value in symm_eval.items():
+            symm_eval_all[key] = torch.zeros_like(value).to(opt.device)
+        for key, value in symm_eval.items():
+            torch.distributed.all_reduce(symm_eval_all[key], op=torch.distributed.ReduceOp.SUM)
+        return symm_eval_all
+
     @torch.no_grad()
     def evaluate(self, opt, ep, training=False):
         self.graph.eval()
@@ -365,6 +382,7 @@ class Runner():
         cd_comps = []
         f_scores = []
         cat_indices = []
+        symm_eval_metric_dicts = []
         loss_eval = edict()
         metric_eval = dict(dist_acc=0., dist_cov=0.)
         eval_metric_logger = util.MetricLogger(delimiter="  ")
@@ -386,15 +404,20 @@ class Runner():
 
                 # record CD for evaluation
                 dist_acc, dist_cov = eval_3D.eval_metrics(opt, var, self.graph.module.impl_network)
+                f1, geo, center_dist = eval_3D.eval_symm(opt, var, self.graph.module.impl_network)
                 
                 # accumulate the scores
                 cd_accs.append(var.cd_acc)
                 cd_comps.append(var.cd_comp)
                 f_scores.append(var.f_score)
                 cat_indices.append(var.category_label)
+                symm_eval_metric_dicts.append(var.symm_eval_metric)
                 eval_metric_logger.update(ACC=dist_acc)
                 eval_metric_logger.update(COMP=dist_cov)
                 eval_metric_logger.update(CD=(dist_acc+dist_cov) / 2)
+                eval_metric_logger.update(F1=f1)
+                eval_metric_logger.update(GEO=geo)
+                eval_metric_logger.update(CENTER=center_dist)
                 
                 if opt.device == 0 and it % opt.freq.print_eval == 0: 
                     print('[{}] '.format(datetime.datetime.now().time()), end='')
@@ -433,6 +456,7 @@ class Runner():
             cd_comps = torch.cat(cd_comps, dim=0)
             f_scores = torch.cat(f_scores, dim=0)
             cat_indices = torch.cat(cat_indices, dim=0)
+            symm_eval = self.aggregate_symm_eval_metric_dicts(symm_eval_metric_dicts)
 
         if opt.world_size > 1:
             # empty tensors for gathering
@@ -447,6 +471,9 @@ class Runner():
             torch.distributed.all_gather(cd_comps_all, cd_comps)
             torch.distributed.all_gather(f_scores_all, f_scores)
             torch.distributed.all_gather(cat_indices_all, cat_indices)
+            torch.distributed.barrier()
+            symm_eval_all = self.gather_symm_eval_metrics(symm_eval, opt)
+            torch.distributed.barrier()
             cd_accs_all = torch.cat(cd_accs_all, dim=0)
             cd_comps_all = torch.cat(cd_comps_all, dim=0)
             f_scores_all = torch.cat(f_scores_all, dim=0)
@@ -456,12 +483,14 @@ class Runner():
             cd_comps_all = cd_comps
             f_scores_all = f_scores
             cat_indices_all = cat_indices
+            symm_eval_all = symm_eval
         # handle last batch, if any
         if len(self.test_loader.sampler) * opt.world_size < len(self.test_data):
             cd_accs_all = [cd_accs_all]
             cd_comps_all = [cd_comps_all]
             f_scores_all = [f_scores_all]
             cat_indices_all = [cat_indices_all]
+            symm_eval_all = [symm_eval_all]
             for batch in tqdm(self.aux_test_loader):
                 # inference the model
                 var = edict(batch)
@@ -469,11 +498,13 @@ class Runner():
 
                 # record CD for evaluation
                 dist_acc, dist_cov = eval_3D.eval_metrics(opt, var, self.graph.module.impl_network)
+                f1, geo, center_dist = eval_3D.eval_symm(opt, var, self.graph.module.impl_network)
                 # accumulate the scores
                 cd_accs_all.append(var.cd_acc)
                 cd_comps_all.append(var.cd_comp)
                 f_scores_all.append(var.f_score)
                 cat_indices_all.append(var.category_label)
+                symm_eval_all.append(var.symm_eval_metric)
                 
                 # dump the result if in eval mode
                 if not training and opt.device == 0: 
@@ -483,6 +514,7 @@ class Runner():
             cd_comps_all = torch.cat(cd_comps_all, dim=0)
             f_scores_all = torch.cat(f_scores_all, dim=0)
             cat_indices_all = torch.cat(cat_indices_all, dim=0)
+            symm_eval_all = self.aggregate_symm_eval_metric_dicts(symm_eval_all)
 
         assert cd_accs_all.shape[0] == len(self.test_data)
         if not training: 
@@ -496,6 +528,9 @@ class Runner():
             print_eval(opt, loss=None, chamfer=(metric_eval["dist_acc"],
                                                 metric_eval["dist_cov"]))
             val_metric = (metric_eval["dist_acc"] + metric_eval["dist_cov"]) / 2
+
+            symm_eval_final = eval_3D.generate_symm_eval(symm_eval_all, opt)
+            eval_3D.print_symm_eval(symm_eval_final, opt)
         
             if training:
                 # log/visualize results to tb/vis
