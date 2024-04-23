@@ -359,7 +359,7 @@ class Runner():
     def aggregate_symm_eval_metric_dicts(self, symm_eval_metric_dicts):
         result = {}
         for key, value in symm_eval_metric_dicts[0].items():
-            result[key] = value.copy()
+            result[key] = value.clone()
         for dict in symm_eval_metric_dicts[1:]:
             for key, value in dict.items():
                 result[key] += value
