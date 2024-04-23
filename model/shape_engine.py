@@ -366,12 +366,12 @@ class Runner():
         return result
     
     def gather_symm_eval_metrics(self, symm_eval, opt):
-        symm_eval_all = {}
+        # symm_eval_all = {}
+        # for key, value in symm_eval.items():
+        #     symm_eval_all[key] = torch.zeros(1).to(opt.device)
         for key, value in symm_eval.items():
-            symm_eval_all[key] = torch.zeros(1).to(opt.device)
-        for key, value in symm_eval.items():
-            torch.distributed.all_reduce(symm_eval_all[key], op=torch.distributed.ReduceOp.SUM)
-        return symm_eval_all
+            torch.distributed.all_reduce(symm_eval[key], op=torch.distributed.ReduceOp.SUM)
+        return symm_eval
 
     @torch.no_grad()
     def evaluate(self, opt, ep, training=False):
