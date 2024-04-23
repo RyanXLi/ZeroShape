@@ -229,7 +229,7 @@ def eval_symm(opt, var, impl_network, vis_only=False):
     num_no_pred_has_gt = 0
     num_no_pred_no_gt = 0
 
-    f1 = impl_network.f1.to(outputs["cls_logits"].device)
+    # f1 = impl_network.f1.to(outputs["cls_logits"].device)
     batch_size = outputs["cls_logits"].shape[0]
     center_dist = outputs["center_dist"]
     normal_dist = outputs["normal_dist"]
@@ -244,8 +244,9 @@ def eval_symm(opt, var, impl_network, vis_only=False):
     # pred_cls: B x Q
     pred_cls = pred_logits.argmax(-1).type(torch.int64)
     gt_box_label = proposal_matched_mask.type(torch.int64)
-    cls_f1 = f1(pred_cls, gt_box_label)
-    cls_f1 = cls_f1.sum()
+    tp = torch.sum((pred_cls == 1) & (gt_box_label == 1))
+    fp = torch.sum((pred_cls == 1) & (gt_box_label == 0))
+    fn = torch.sum((pred_cls == 0) & (gt_box_label == 1))
 
     # center_distance
     center_distance = center_dist * gt_box_label
@@ -256,6 +257,10 @@ def eval_symm(opt, var, impl_network, vis_only=False):
     normal_cos_sim = 1 - normal_dist
     normal_cos_sim = torch.clamp(normal_cos_sim, min=0, max=1)
     # normal_cos_sim = normal_cos_sim * pred_cls.unsqueeze(1) # B x Q x NGT
+
+    normal_geodesic_distance_recall = 0
+    normal_geodesic_distance_precision = 0
+
     for b in range(batch_size):
         num_valid_gt = int(proposal_matched_mask[b].sum().cpu().detach().numpy())
         num_pred = int(pred_cls[b].sum().cpu().detach().numpy())
@@ -284,16 +289,19 @@ def eval_symm(opt, var, impl_network, vis_only=False):
         rec_b_normal_geodesic_dist = torch.arccos(rec_b_normal_cos_sim)
         prec_b_normal_cos_sim, _ = predicted_b_normal_cos_sim.max(0) # pred_Q
         prec_b_normal_geodesic_dist = torch.arccos(prec_b_normal_cos_sim)
+        normal_geodesic_distance_recall += rec_b_normal_geodesic_dist.sum()
+        normal_geodesic_distance_precision += prec_b_normal_geodesic_dist.sum()
 
         npred += num_pred
         ngt += num_valid_gt
         n_has_both += 1
-        normal_geodesic_distance_recall += rec_b_normal_geodesic_dist.sum()
-        normal_geodesic_distance_precision += prec_b_normal_geodesic_dist.sum()
 
 
     var.symm_eval_metric = {
-        "cls_f1": cls_f1,
+        "cardinality": cardinality,
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
         "center_distance": center_distance,
         "normal_geodesic_distance_recall": normal_geodesic_distance_recall,
         "normal_geodesic_distance_precision": normal_geodesic_distance_precision,
@@ -307,14 +315,19 @@ def eval_symm(opt, var, impl_network, vis_only=False):
         "num_no_pred_no_gt": num_no_pred_no_gt
     }
 
-    batch_aggregated_f1 = cls_f1 / batch_size
-    batch_aggregated_geo = (normal_geodesic_distance_recall + normal_geodesic_distance_precision) / n_has_both / 2
+    batch_aggregated_f1 = 2 * tp / (2 * tp + fp + fn + 1.e-8)
+    if n_has_both == 0:
+        batch_aggregated_geo = torch.tensor(0.0)
+    else:
+        batch_aggregated_geo = (normal_geodesic_distance_recall + normal_geodesic_distance_precision) / n_has_both / 2
     batch_aggregated_center_dist = center_distance / batch_size
     return batch_aggregated_f1, batch_aggregated_geo, batch_aggregated_center_dist
 
 def generate_symm_eval(eval, opt):
     result = {
-        "cls_f1": eval["cls_f1"] / eval["batch_size"],
+        "cls_precision": eval["tp"] / (eval["tp"] + eval["fp"] + 1.e-8),
+        "cls_recall": eval["tp"] / (eval["tp"] + eval["fn"] + 1.e-8),
+        "cls_f1": 2 * eval["tp"] / (2 * eval["tp"] + eval["fp"] + eval["fn"] + 1.e-8),
         "center_distance": eval["center_distance"] / eval["batch_size"],
         "normal_geodesic_distance": (eval["normal_geodesic_distance_recall"] + eval["normal_geodesic_distance_precision"]) / eval["n_has_both"] / 2,
         "npred": eval["npred"],

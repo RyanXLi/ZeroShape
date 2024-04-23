@@ -6,7 +6,7 @@ from functools import partial
 from utils.layers import get_embedder
 from utils.layers import LayerScale
 from timm.models.vision_transformer import Mlp, DropPath
-from torchmetrics.classification import MultilabelF1Score
+# from torchmetrics.classification import MultilabelF1Score
 
 # from utils.pos_embed import get_2d_sincos_pos_embed
     
@@ -232,7 +232,7 @@ class Implicit(nn.Module):
             self.pred_head = nn.Linear(n_channels, 1, bias=True)
 
         self.initialize_weights()
-        self.f1 = MultilabelF1Score(num_labels=31, average='micro', multidim_average='samplewise')
+        # self.f1 = MultilabelF1Score(num_labels=31, average='micro', multidim_average='samplewise')
 
     def initialize_weights(self):
         

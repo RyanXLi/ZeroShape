@@ -77,6 +77,10 @@ class Dataset(base.Dataset):
                     name = '.'.join(img_fname.split('.')[:-1])
                     object_name = name.split('_')[-2]
                     sample_id = name.split('_')[-1]
+
+                    # TODO: remove debug statements
+                    if split != "train" and len(data_list) > 100:
+                        continue
                     
                     if DATASET_DEBUG:
                         if split == "train":
