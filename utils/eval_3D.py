@@ -216,6 +216,9 @@ def eval_metrics(opt, var, impl_network, vis_only=False):
     
 
 def eval_symm(opt, var, impl_network, vis_only=False):
+
+    THRESHOLD = 0.5
+
     outputs = var.symm_outputs
     targets = var.symm_targets
     assignments = var.symm_assignments
@@ -237,13 +240,15 @@ def eval_symm(opt, var, impl_network, vis_only=False):
     proposal_matched_mask = assignments["proposal_matched_mask"]
 
     # cardinality
-    pred_logits = outputs["cls_logits"]
-    is_object = pred_logits.argmax(-1) != 0
+    pred_logits = outputs["cls_logits"].squeeze(-1)
+    pred_logits = torch.sigmoid(pred_logits)
+    is_object = pred_logits > THRESHOLD
     cardinality = is_object.sum()
 
     # cls_f1
     # pred_cls: B x Q
-    pred_cls = pred_logits.argmax(-1).type(torch.int64)
+    # pred_cls = pred_logits.argmax(-1).type(torch.int64)
+    pred_cls = (pred_logits > THRESHOLD).type(torch.int64)
     gt_box_label = proposal_matched_mask.type(torch.int64)
     tp = torch.sum((pred_cls == 1) & (gt_box_label == 1))
     fp = torch.sum((pred_cls == 1) & (gt_box_label == 0))

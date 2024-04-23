@@ -46,7 +46,7 @@ arch:
 eval:
     batch_size: 2
     brute_force: false
-    n_vis: 50
+    n_vis: 2
     vox_res: 64
     num_points: 10000
     range: [-1.5,1.5]
@@ -85,7 +85,7 @@ loss_weight:
     shape: 1
     depth: 
     intr: 
-    symm_cls: 0.1
+    symm_cls: 0.5
     symm_normal: 0.1
     symm_offset: 0.1
 

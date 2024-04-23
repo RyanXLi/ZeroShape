@@ -23,8 +23,10 @@ class Loss(nn.Module):
         self.midas_loss = MidasLoss(alpha=opt.training.depth_loss.grad_reg, 
                                     inverse_depth=opt.training.depth_loss.depth_inv, 
                                     shrink_mask=opt.training.depth_loss.mask_shrink)
-        self.semcls_percls_weights = torch.ones(2)
-        self.semcls_percls_weights[0] = 0.1
+        # self.semcls_percls_weights = torch.ones(2)
+        # self.semcls_percls_weights[0] = 0.1
+        self.neg_class_weight = 0.1
+        self.symm_cls_loss_fn = nn.BCEWithLogitsLoss(reduction='none')
 
     def binary_cross_entropy(self, my_input, target):
         """
@@ -64,20 +66,15 @@ class Loss(nn.Module):
         return loss
     
     def symm_cls_loss(self, outputs, targets, assignments):
+        pred_logits = outputs["cls_logits"].squeeze(-1)
+        gt_box_label = assignments["proposal_matched_mask"]
 
-        # pred_logits: B x Q x 2
-        # batch_size = pred_logits.shape[0]
-        # nprop = pred_logits.shape[1]
-        # device = pred_logits.device
-        pred_logits = outputs["cls_logits"]
-        # gt_box_label = torch.zeros((batch_size, nprop), dtype=torch.int64, device=device)
-        gt_box_label = assignments["proposal_matched_mask"].type(torch.int64)
-        loss = F.cross_entropy(
-            pred_logits.reshape(-1, 2),
-            gt_box_label.reshape(-1),
-            self.semcls_percls_weights.to(pred_logits.device),
-            reduction="mean",
-        )
+        loss = self.symm_cls_loss_fn(pred_logits, gt_box_label)
+        weight_mask = torch.ones_like(loss)
+        weight_mask[gt_box_label == 0] = self.neg_class_weight
+        loss = loss * weight_mask
+        return loss.mean()
+
         # loss = sigmoid_focal_loss(
         #     pred_logits,
         #     gt_box_label,
@@ -86,7 +83,6 @@ class Loss(nn.Module):
         # )
 
 
-        return loss
     
     def symm_normal_loss(self, outputs, targets, assignments):
         normal_dist = outputs["normal_dist"]
@@ -116,3 +112,6 @@ class Loss(nn.Module):
             offset_loss /= targets["num_total_actual_gt"]
 
         return offset_loss
+    
+    # def consistency_loss(self, pred_occ_raw, gt_sdf):
+    #     return loss
