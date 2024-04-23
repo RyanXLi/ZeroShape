@@ -223,12 +223,12 @@ def eval_symm(opt, var, impl_network, vis_only=False):
 
     npred = torch.tensor(0.).to(device)
     ngt = torch.tensor(0.).to(device)
-    n_has_both = torch.tensor(0).to(device)
+    n_has_both = torch.tensor(0.).to(device)
 
-    num_has_pred_has_gt = torch.tensor(0).to(device)
-    num_has_pred_no_gt = torch.tensor(0).to(device)
-    num_no_pred_has_gt = torch.tensor(0).to(device)
-    num_no_pred_no_gt = torch.tensor(0).to(device)
+    num_has_pred_has_gt = torch.tensor(0.).to(device)
+    num_has_pred_no_gt = torch.tensor(0.).to(device)
+    num_no_pred_has_gt = torch.tensor(0.).to(device)
+    num_no_pred_no_gt = torch.tensor(0.).to(device)
 
     # f1 = impl_network.f1.to(outputs["cls_logits"].device)
     batch_size = outputs["cls_logits"].shape[0]
@@ -259,8 +259,8 @@ def eval_symm(opt, var, impl_network, vis_only=False):
     normal_cos_sim = torch.clamp(normal_cos_sim, min=0, max=1)
     # normal_cos_sim = normal_cos_sim * pred_cls.unsqueeze(1) # B x Q x NGT
 
-    normal_geodesic_distance_recall = torch.tensor(0).to(device)
-    normal_geodesic_distance_precision = torch.tensor(0).to(device)
+    normal_geodesic_distance_recall = torch.tensor(0.).to(device)
+    normal_geodesic_distance_precision = torch.tensor(0.).to(device)
 
     for b in range(batch_size):
         num_valid_gt = int(proposal_matched_mask[b].sum().cpu().detach().numpy())
@@ -318,7 +318,7 @@ def eval_symm(opt, var, impl_network, vis_only=False):
 
     batch_aggregated_f1 = 2 * tp / (2 * tp + fp + fn + 1.e-8)
     if n_has_both == 0:
-        batch_aggregated_geo = torch.tensor(0.0)
+        batch_aggregated_geo = torch.tensor(0.0).to(device)
     else:
         batch_aggregated_geo = (normal_geodesic_distance_recall + normal_geodesic_distance_precision) / n_has_both / 2
     batch_aggregated_center_dist = center_distance / batch_size
