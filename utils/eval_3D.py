@@ -239,7 +239,7 @@ def eval_symm(opt, var, impl_network, vis_only=False):
     # cardinality
     pred_logits = outputs["cls_logits"]
     is_object = pred_logits.argmax(-1) != 0
-    cardinality = is_object.sum(1)
+    cardinality = is_object.sum()
 
     # cls_f1
     # pred_cls: B x Q
