@@ -308,7 +308,7 @@ def eval_symm(opt, var, impl_network, vis_only=False):
         "normal_geodesic_distance_precision": normal_geodesic_distance_precision,
         "npred": npred,
         "ngt": ngt,
-        "batch_size": batch_size,
+        "batch_size": torch.tensor(batch_size).to(device),
         "n_has_both": n_has_both,
         "num_has_pred_has_gt": num_has_pred_has_gt,
         "num_has_pred_no_gt": num_has_pred_no_gt,
