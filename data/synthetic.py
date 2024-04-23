@@ -78,9 +78,9 @@ class Dataset(base.Dataset):
                     object_name = name.split('_')[-2]
                     sample_id = name.split('_')[-1]
 
-                    # TODO: remove debug statements
-                    if split != "train" and len(data_list) > 6:
-                        continue
+                    # # TODO: remove debug statements
+                    # if split != "train" and len(data_list) > 100:
+                    #     continue
                     
                     if DATASET_DEBUG:
                         if split == "train":
