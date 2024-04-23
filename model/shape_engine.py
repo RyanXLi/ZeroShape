@@ -370,7 +370,7 @@ class Runner():
         # for key, value in symm_eval.items():
         #     symm_eval_all[key] = torch.zeros(1).to(opt.device)
         for key, value in symm_eval.items():
-            print(key, torch.distributed.get_rank())
+            # print(key, torch.distributed.get_rank())
             torch.distributed.all_reduce(symm_eval[key], op=torch.distributed.ReduceOp.SUM)
         return symm_eval
 
