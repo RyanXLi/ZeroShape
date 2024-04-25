@@ -10,3 +10,6 @@ examples/pred**
 
 *.log
 **log
+
+external/pointnet2/build
+external/pointnet2/dist
