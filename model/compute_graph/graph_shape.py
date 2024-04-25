@@ -346,6 +346,7 @@ class Graph(nn.Module):
             # print(f"vram after running of impl_network: {torch.cuda.memory_allocated() / 1024 ** 3:.2f}GB")
             # print(f"vram after running of impl_network: {torch.cuda.max_memory_allocated() / 1024 ** 3:.2f}GB")
             # log_tensor_strides(var.latent_depth, "After operation XYZ")
+
             query_normals = self.query_normals.to(var.latent_depth.device)
             symm_outputs = self.symm_decoder(var.latent_depth, enc_xyz=var.enc_xyz)
             symm_outputs = symm_outputs["outputs"] # ommitted the "aux_outputs" 
@@ -354,12 +355,87 @@ class Graph(nn.Module):
             var.symm_assignments = self.prepare_symm_assignments(opt, var, query_normals)
             if visualize:
                 self.visualize_gt_planes(var)
+
+            if training:
+                # calculate the symmetry alignment losses
+                pred_batch_dimension_valid_mask = torch.zeros((batch_size), device=var.gt_sample_sdf.device)
+                gt_batch_dimension_valid_mask = torch.zeros((batch_size), device=var.gt_sample_sdf.device)
+
+                # if there is prediction
+                pred_logits = var.symm_outputs["cls_logits"]
+                pred_cls = pred_logits.argmax(-1).type(torch.int64)
+                # pred_most_positive_mask = torch.zeros_like(pred_logits[:, :, 1])
+                # pred_most_positive_mask[pred_logits[:, :, 1].argmax(-1)] = 1
+                # final_mask = pred_most_positive_mask * pred_cls
+                # final_mask = final_mask.bool().unsqueeze(-1)
+                # # repeat the final mask 3 times at the last dimension
+                # final_mask = final_mask.repeat(1, 1, 3)
+                # # final_mask: [B, Q] boolean mask
+                # pred_symm_normal_used = var.symm_outputs["normal"][final_mask].squeeze(1)
+                # # pred_symm_offset_used = var.symm_outputs["offset"]
+                pred_symm_normal_used = torch.zeros((pred_cls.shape[0], 3), device=pred_cls.device)
+                for b in range(pred_cls.shape[0]):
+                    if pred_cls[b].sum() == 0:
+                        pred_symm_normal_used[b, 0] = 1 # dummy value
+                        pred_batch_dimension_valid_mask[b] = 0.
+                    else:
+                        # randomly select one of the pred for each data in the batch
+                        selected_pred = torch.randint(0, pred_cls[b].sum(), (1,))
+                        pred_symm_normal_used[b] = var.symm_outputs["normal"][b, pred_cls[b].nonzero()[selected_pred]]
+                        pred_batch_dimension_valid_mask[b] = 1.
+
+                gt_planes = var.symm_targets["gt_normal_normalized"]
+                num_actual_gt = var.symm_targets["num_actual_gt"]
+                gt_symm_normal_used = torch.zeros((gt_planes.shape[0], 3), device=gt_planes.device)
+                gt_symm_center_used = var.symm_targets["center_coords"]
+                # randomly select one of the matched gt for each data in the batch
+                for b in range(gt_planes.shape[0]):
+                    if num_actual_gt[b] == 0:
+                        gt_symm_normal_used[b, 0] = 1 # dummy value
+                        gt_batch_dimension_valid_mask[b] = 0.
+                    else:
+                        # randomly select one of the gt for each data in the batch
+                        selected_gt = torch.randint(0, num_actual_gt[b], (1,))
+                        gt_symm_normal_used[b] = gt_planes[b, selected_gt]
+                        gt_batch_dimension_valid_mask[b] = 1.
+                    
+
+                # pred_reflection_mx = self.get_reflection_mx_via_offset(pred_symm_normal_used, pred_symm_offset_used)
+                pred_reflection_mx = self.get_reflection_mx_via_center(pred_symm_normal_used) # caveat: using gt center for convenience
+                pred_query_points = self.reflect_query_points(pred_reflection_mx, gt_symm_center_used, var.gt_points_cam)
+                gt_reflection_mx = self.get_reflection_mx_via_center(gt_symm_normal_used)
+                gt_query_points = self.reflect_query_points(gt_reflection_mx, gt_symm_center_used, var.gt_points_cam)
+
+                var.pred_sample_occ_flipped_by_pred, attn = self.impl_network(var.latent_depth, var.latent_semantic, pred_query_points, pos=var.enc_pos)
+                var.pred_sample_occ_flipped_by_gt, attn = self.impl_network(var.latent_depth, var.latent_semantic, gt_query_points, pos=var.enc_pos)
+
+                var.pred_batch_dimension_valid_mask = pred_batch_dimension_valid_mask
+                var.gt_batch_dimension_valid_mask = gt_batch_dimension_valid_mask
+
         # calculate the loss if needed
         if get_loss: 
             loss = self.compute_loss(opt, var, training)
             return var, loss
         
         return var
+
+
+    # def get_reflection_mx_via_offset(self, symm_normal_used, symm_offset_used):
+    #     return reflection_mx # B x 3 x 3
+    
+    def get_reflection_mx_via_center(self, symm_normal_used):
+        reflection_mx = torch.zeros((symm_normal_used.shape[0], 3, 3), device=symm_normal_used.device)
+        for b in range(symm_normal_used.shape[0]):
+            reflection_mx[b] = torch.eye(3).to(symm_normal_used.device) - 2 * torch.outer(symm_normal_used[b], symm_normal_used[b])
+            
+        return reflection_mx # B x 3 x 3
+    
+    def reflect_query_points(self, reflection_mx, gt_symm_center_used, points):
+        center = gt_symm_center_used
+        points = points - center
+        reflected_points = torch.bmm(reflection_mx, points.permute(0, 2, 1)).permute(0, 2, 1)
+        reflected_points = reflected_points + center
+        return reflected_points
 
     def compute_loss(self, opt, var, training=False):
         loss = edict()
@@ -375,4 +451,11 @@ class Graph(nn.Module):
             loss.symm_normal = self.loss_fns.symm_normal_loss(var.symm_outputs, var.symm_targets, var.symm_assignments)
         if opt.loss_weight.symm_offset is not None and training:
             loss.symm_offset = self.loss_fns.symm_offset_loss(var.symm_outputs, var.symm_targets, var.symm_assignments)
+        if opt.loss_weight.alignment1 is not None and training:
+            loss.alignment1 = self.loss_fns.alignment_loss_12(var.pred_sample_occ, var.pred_sample_occ_flipped_by_pred, var.gt_sample_sdf, var.pred_batch_dimension_valid_mask)
+        if opt.loss_weight.alignment2 is not None and training:
+            loss.alignment2 = self.loss_fns.alignment_loss_12(var.pred_sample_occ, var.pred_sample_occ_flipped_by_gt, var.gt_sample_sdf, var.gt_batch_dimension_valid_mask)
+        if opt.loss_weight.alignment3 is not None and training:
+            loss.alignment3 = self.loss_fns.alignment_loss_3(var.pred_sample_occ_flipped_by_gt, var.gt_sample_sdf, var.gt_batch_dimension_valid_mask)
+
         return loss

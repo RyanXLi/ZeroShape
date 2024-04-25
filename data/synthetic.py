@@ -79,7 +79,7 @@ class Dataset(base.Dataset):
                     sample_id = name.split('_')[-1]
 
                     # # TODO: remove debug statements
-                    # if split != "train" and len(data_list) > 100:
+                    # if len(data_list) > 100:
                     #     continue
                     
                     if DATASET_DEBUG:
