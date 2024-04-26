@@ -88,6 +88,9 @@ loss_weight:
     symm_cls: 0.1
     symm_normal: 0.1
     symm_offset: 0.1
+    alignment1: 
+    alignment2: 
+    alignment3: 0.5
 
     
 optim:

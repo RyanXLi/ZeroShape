@@ -87,10 +87,10 @@ class Dataset(base.Dataset):
                             fname = f"{cat}/{cat}_{object_name}_{sample_id}"
                             if fname not in bad_data:
                                 continue
-                            for i in range(100):
+                            for i in range(10000):
                                 data_list.append((subset, cat, object_name, sample_id))
                         else:
-                            if i <= 100:
+                            if len(data_list) <= 100:
                                 data_list.append((subset, cat, object_name, sample_id))
                     else:
                         data_list.append((subset, cat, object_name, sample_id))
