@@ -2,7 +2,7 @@ group: shape
 name: shape_recon
 load: 
 
-batch_size: 72 #72 # 24 per card for a40 # 13 per card for a40,
+batch_size: 52 # 24 per card for a40 # 13 per card for a40,
 debug: false
 profile: false
 image_size: [224,224]
@@ -82,16 +82,15 @@ training:
         mask_shrink: false
 
 loss_weight:
-    shape: 0.5
+    shape: 1
     depth: 
     intr: 
-    symm_cls: 0.5
+    symm_cls: 0.1
     symm_normal: 0.1
     symm_offset: 0.1
-    alignment1: 
+    alignment1: 0.5
     alignment2: 
-    alignment3: 0.5
-
+    alignment3: 
     
 optim:
     lr: 6.e-5 #3.e-5
@@ -102,7 +101,7 @@ optim:
     clip_norm: 
     amp: false
     accum: 1
-    sched: true
+    sched: false
 
 tb:
     num_images: [4,8]
@@ -126,6 +125,7 @@ pointtr:
         mlp_ratio: 2.
         block_style_list: ['attn-graph', 'attn', 'attn', 'attn', 'attn', 'attn']
         combine_style: 'concat'
+
 
 symm_decoder:
     dim: 256

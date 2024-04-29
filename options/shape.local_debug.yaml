@@ -2,7 +2,7 @@ group: shape
 name: shape_recon
 load: 
 
-batch_size: 1
+batch_size: 4
 debug: false
 profile: false
 image_size: [224,224]
@@ -46,7 +46,7 @@ arch:
 eval:
     batch_size: 2
     brute_force: false
-    n_vis: 2
+    n_vis: 4
     vox_res: 64
     num_points: 10000
     range: [-1.5,1.5]
@@ -88,6 +88,9 @@ loss_weight:
     symm_cls: 0.5
     symm_normal: 0.1
     symm_offset: 0.1
+    alignment1: 
+    alignment2: 
+    alignment3: 0.5
 
     
 optim:

@@ -35,6 +35,7 @@ class Runner():
             os.makedirs(opt.output_path,exist_ok=True)
         setup(opt.device, opt.world_size, opt.port)
         opt.batch_size = opt.batch_size // opt.world_size
+        # torch.autograd.set_detect_anomaly(True)
     
     def get_viz_data(self, opt):
         # get data for visualization

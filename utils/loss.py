@@ -38,6 +38,10 @@ class Loss(nn.Module):
             my_input = torch.sigmoid(my_input)
             result = -(target * torch.log(my_input) + (1 - target) * torch.log(1 - my_input))
         return result
+    
+    def alignment_loss(self, my_input, target):
+        return -(target * torch.log(my_input) + (1 - target) * torch.log(1 - my_input))
+
 
     def shape_loss(self, pred_occ_raw, gt_sdf):
         assert len(pred_occ_raw.shape) == 2
@@ -113,5 +117,31 @@ class Loss(nn.Module):
 
         return offset_loss
     
-    # def consistency_loss(self, pred_occ_raw, gt_sdf):
-    #     return loss
+    def alignment_loss_12(self, outputs, flipped_outputs, gt_sdf, batch_dimension_valid_mask):
+        # Align predicted occ with pred flipped occ or gt flipped occ (loss 1 or loss 2)
+        # In graph shape: extract pred and gt symmetry planes, get the flipping matrix by these planes, flip the query points, and then query model, and calculate the loss
+
+        outputs = torch.sigmoid(outputs.float())
+        flipped_outputs = torch.sigmoid(flipped_outputs.float())
+
+        loss = self.alignment_loss(outputs, flipped_outputs)
+        weight_mask = torch.ones_like(loss)
+        thres = self.opt.training.shape_loss.impt_thres
+        weight_mask[torch.abs(gt_sdf) < thres] = weight_mask[torch.abs(gt_sdf) < thres] * self.opt.training.shape_loss.impt_weight 
+        loss = loss * weight_mask
+        loss *= batch_dimension_valid_mask.unsqueeze(-1)
+        return loss.mean()
+    
+    def alignment_loss_3(self, flipped_outputs, gt_sdf, batch_dimension_valid_mask):
+        assert len(flipped_outputs.shape) == 2
+        assert len(gt_sdf.shape) == 2
+        # [B, N]
+        gt_occ = (gt_sdf < 0).float()
+        loss = self.occ_loss(flipped_outputs, gt_occ)
+        weight_mask = torch.ones_like(loss)
+        thres = self.opt.training.shape_loss.impt_thres
+        weight_mask[torch.abs(gt_sdf) < thres] = weight_mask[torch.abs(gt_sdf) < thres] * self.opt.training.shape_loss.impt_weight 
+        loss = loss * weight_mask
+        loss *= batch_dimension_valid_mask.unsqueeze(-1)
+        return loss.mean()
+    

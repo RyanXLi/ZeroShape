@@ -82,15 +82,15 @@ training:
         mask_shrink: false
 
 loss_weight:
-    shape: 0.5
+    shape: 
     depth: 
     intr: 
-    symm_cls: 0.5
+    symm_cls: 0.1
     symm_normal: 0.1
     symm_offset: 0.1
     alignment1: 
     alignment2: 
-    alignment3: 0.5
+    alignment3:
 
     
 optim:
