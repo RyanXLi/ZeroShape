@@ -85,7 +85,7 @@ loss_weight:
     shape: 0.5
     depth: 
     intr: 
-    symm_cls: 0.1
+    symm_cls: 0.5
     symm_normal: 0.1
     symm_offset: 0.1
     alignment1: 

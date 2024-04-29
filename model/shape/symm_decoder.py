@@ -89,7 +89,7 @@ class SymmDecoder(nn.Module):
         )
 
         # 2 classes (yes or no)
-        cls_head = mlp_func(output_dim=2)
+        cls_head = mlp_func(output_dim=1)
 
         # # continuous rotation representation ortho6d
         # regression_head = mlp_func(output_dim=6)
@@ -336,8 +336,9 @@ class SymmDecoder(nn.Module):
             # below are not used in computing loss (only for matching/mAP eval)
             # we compute them with no_grad() so that distributed training does not complain about unused variables
             with torch.no_grad():
-                cls_prob = torch.nn.functional.softmax(cls_logits[l], dim=-1)
+                # cls_prob = torch.nn.functional.softmax(cls_logits[l], dim=-1)
                 # cls_prob = cls_prob[..., :-1]
+                cls_prob = torch.sigmoid(cls_logits[l])
 
             plane_prediction = {
                 "cls_logits": cls_logits[l],
